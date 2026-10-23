@@ -1,0 +1,291 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Challenger evaluation record",
+  "type": "object",
+  "required": [
+    "record_id",
+    "candidate_id",
+    "recorded_at",
+    "status",
+    "supersedes_record_id",
+    "baseline_commit",
+    "challenger_commit",
+    "strategy_version",
+    "evidence_hash",
+    "registered_at",
+    "evaluation_start",
+    "evaluation_end",
+    "review_date",
+    "primary_metric",
+    "minimum_effect",
+    "decision_rule",
+    "guardrails",
+    "session_calendar",
+    "source_and_session_basis",
+    "episode_definition",
+    "overlap_policy",
+    "cost_and_delay_assumptions",
+    "multiplicity_and_stopping_plan",
+    "exclusion_rules",
+    "results",
+    "decision",
+    "reviewed_by",
+    "reviewed_at",
+    "promotion_pr",
+    "rollback_commit"
+  ],
+  "properties": {
+    "record_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "candidate_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "recorded_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status": {
+      "enum": [
+        "REGISTERED",
+        "SHADOW",
+        "REVIEW",
+        "PROMOTED",
+        "REJECTED",
+        "RETIRED"
+      ]
+    },
+    "supersedes_record_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "baseline_commit": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "challenger_commit": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "strategy_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "evidence_hash": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "registered_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "evaluation_start": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "evaluation_end": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "review_date": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "primary_metric": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "minimum_effect": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "decision_rule": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "guardrails": {
+      "type": "array"
+    },
+    "session_calendar": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_and_session_basis": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "episode_definition": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "overlap_policy": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "cost_and_delay_assumptions": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "multiplicity_and_stopping_plan": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "exclusion_rules": {
+      "type": "array"
+    },
+    "results": {
+      "type": "object",
+      "required": [
+        "sessions",
+        "eligible_episodes",
+        "independent_episode_count",
+        "coverage",
+        "primary_effect",
+        "confidence_interval",
+        "session_cluster_method",
+        "guardrail_results",
+        "cost_stress_results",
+        "calibration",
+        "failures"
+      ],
+      "properties": {
+        "sessions": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "eligible_episodes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "independent_episode_count": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "coverage": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "primary_effect": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "confidence_interval": {
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "session_cluster_method": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "guardrail_results": {
+          "type": "array"
+        },
+        "cost_stress_results": {
+          "type": "array"
+        },
+        "calibration": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "failures": {
+          "type": "array"
+        }
+      },
+      "additionalProperties": false
+    },
+    "decision": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reviewed_by": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reviewed_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "promotion_pr": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "rollback_commit": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,78 @@
+name: Update and deploy dashboard
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['learning/**', 'docs/**', '**.md']
+  workflow_dispatch:
+  schedule:
+    # Ten minutes, offset from the busy top of the hour. UTC covers both ET offsets.
+    # The XNYS calendar gate below skips holidays, premarket and after close + 15m.
+    - cron: '4,14,24,34,44,54 13-21 * * 1-5'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: saty-dashboard-pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: Check exchange session
+        id: market
+        run: python scripts/market_gate.py --github-output "$GITHUB_OUTPUT"
+      - name: Restore durable snapshot and journal
+        if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
+        run: python scripts/sync_state.py prepare
+      - name: Refresh confirmed bars and research observations
+        id: refresh
+        if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
+        continue-on-error: true
+        run: python scripts/refresh.py --output site/data/latest.json --state-dir .dashboard-state/state
+      - name: Validate static payload
+        if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
+        run: python scripts/validate_site.py
+      - name: Persist data without changing main
+        id: persist
+        if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
+        continue-on-error: true
+        run: python scripts/sync_state.py commit
+      - name: Hold the page if journal persistence failed
+        if: steps.persist.outcome == 'failure'
+        run: python scripts/mark_hold.py 'The observation journal could not be saved. Review the failed workflow before using retained context.'
+      - name: Configure Pages
+        if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+      - name: Upload only the static site
+        if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: site
+          retention-days: 1
+      - name: Deploy GitHub Pages
+        id: deployment
+        if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+      - name: Surface refresh or journal failures after deploying HOLD
+        if: steps.refresh.outcome == 'failure' || steps.persist.outcome == 'failure'
+        run: |
+          echo 'A DATA HOLD snapshot was deployed because the feed refresh or journal persistence failed. Inspect the steps above.'
+          exit 1

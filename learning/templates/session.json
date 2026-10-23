@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "session_date": null,
+  "reviewed_at": null,
+  "strategy_version": "saty-sig-2.0",
+  "strategy_commit": null,
+  "evidence_hash": null,
+  "source": {
+    "provider": null,
+    "symbol": "SPY",
+    "session_basis": "RTH",
+    "daily_reference_date": null,
+    "warmup_complete": null,
+    "delays": [],
+    "provider_switches": []
+  },
+  "session_hours": {
+    "open": null,
+    "close": null
+  },
+  "prepared_plan": null,
+  "uw_observations": [],
+  "counts": {
+    "all_signals": 0,
+    "cancelled": 0,
+    "late_observed": 0,
+    "observed_before_entry": 0,
+    "unknown_outcome": 0,
+    "missing_bar_episodes": 0,
+    "ambiguous": 0
+  },
+  "reconciled": false,
+  "journal_paths": [],
+  "fixed_barrier_summary": null,
+  "managed_policy_summary": null,
+  "lessons": [],
+  "candidate_ids": [],
+  "data_quality_incidents": [],
+  "decision": "NO_CHANGE",
+  "notes": []
+}

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="A signal-only SPY decision dashboard with Saty ATR levels, market structure, and transparent historical evidence.">
+  <title>SATY · SPY decision desk</title>
+  <link rel="stylesheet" href="assets/styles.css">
+  <script type="module" src="assets/app.js"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to dashboard</a>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="SATY home"><span class="brand-mark" aria-hidden="true">S</span><span>SATY<span class="brand-sub">DECISION DESK</span></span></a>
+    <nav aria-label="Main navigation"><a href="#overview">Overview</a><a href="#setups">Setups</a><a href="#evidence">Evidence</a><a href="https://github.com/carterwaynereed/SATY/tree/main/learning" target="_blank" rel="noopener noreferrer">Learning <span aria-hidden="true">↗</span></a></nav>
+    <div class="header-right"><span class="signal-only">SIGNAL ONLY</span><time id="clock">— ET</time></div>
+  </header>
+  <div id="health-banner" class="health-banner hold" role="status" aria-live="polite"><span class="status-dot"></span><strong id="health-label">DATA HOLD</strong><span id="health-reason">Loading the latest published snapshot.</span><span class="health-age" id="health-age">—</span></div>
+  <main id="main">
+    <section id="overview" class="overview" aria-labelledby="desk-title">
+      <div class="section-title"><div><p class="eyebrow">MARKET STRUCTURE / HISTORICAL EVIDENCE</p><h1 id="desk-title">SPY decision desk</h1></div><div class="session-meta"><span id="session-label">Session unavailable</span><span id="source-label">Confirmed 3-minute bars · scheduled snapshots</span></div></div>
+      <div class="quote-strip">
+        <div class="quote-main"><span class="metric-label">SPY <span class="soft">LAST CONFIRMED CLOSE</span></span><div><strong id="last-price">—</strong><span id="day-change" class="quote-change">—</span></div><span id="quote-asof" class="micro">Waiting for market data</span></div>
+        <div class="quote-metric"><span class="metric-label">PREVIOUS CLOSE</span><strong id="prev-close">—</strong><span class="micro">Daily anchor</span></div>
+        <div class="quote-metric"><span class="metric-label">ATR · 14</span><strong id="atr">—</strong><span class="micro">Prior daily Wilder ATR</span></div>
+        <div class="quote-metric"><span class="metric-label">MOVE / ATR</span><strong id="atr-move">—</strong><span class="micro">From previous close</span></div>
+        <div class="quote-metric"><span class="metric-label">RTH VWAP</span><strong id="vwap">—</strong><span class="micro">Session price / volume</span></div>
+      </div>
+    </section>
+    <div class="dashboard-grid">
+      <section class="panel chart-panel" aria-labelledby="chart-title"><div class="panel-heading"><div><p class="eyebrow">01 / PRICE STRUCTURE</p><h2 id="chart-title">The session map</h2></div><div class="chart-toggles"><label><input id="toggle-levels" type="checkbox" checked> ATR levels</label><label><input id="toggle-ribbon" type="checkbox" checked> Ribbon</label></div></div><div id="chart" class="chart"><div class="empty-state"><span class="empty-icon" aria-hidden="true">⌁</span><strong>Waiting for a confirmed session</strong><p>The next successful data run will draw the price map here.</p></div></div><div class="chart-caption"><span><i class="legend-candle"></i> 3m close <i class="legend-ribbon"></i> EMA 8 / 21 / 34 / 48</span><span>RTH engine variant · ET</span></div></section>
+      <section class="panel decision-panel" aria-labelledby="decision-title"><div class="panel-heading"><div><p class="eyebrow">02 / DECISION CONTEXT</p><h2 id="decision-title">What matters next</h2></div><span id="plan-state" class="badge amber">DATA HOLD</span></div><p id="plan-summary" class="decision-summary">A published, current snapshot is required to assess the session.</p><div id="next-conditions" class="conditions"></div><div id="conflicts" class="conflicts"></div><p class="decision-note">Snapshots refresh about every 10 minutes. Replayed signals describe completed decisions; they are not current entry instructions.</p></section>
+      <section class="indicator-strip" aria-label="Current indicators">
+        <div class="indicator"><span class="metric-label">PIVOT RIBBON</span><strong id="ribbon-state">—</strong><span id="ribbon-detail" class="micro">EMA 8 / 13 / 21 / 34 / 48</span></div>
+        <div class="indicator"><span class="metric-label">CONVICTION · 13 / 48</span><strong id="conviction">—</strong><span class="micro">RTH basis; ETH parity is unverified</span></div>
+        <div class="indicator"><span class="metric-label">PHASE OSCILLATOR</span><strong id="phase">—</strong><span id="phase-detail" class="micro">Confirmed-bar phase</span></div>
+        <div class="indicator"><span class="metric-label">SQUEEZE</span><strong id="squeeze">—</strong><span class="micro">Context filter, not a probability boost</span></div>
+        <div class="ema-readout" aria-label="Current RTH exponential moving averages"><span class="ema-basis">RTH EMA VALUES</span><span>EMA 8 <strong id="ema-8">—</strong></span><span>EMA 13 <strong id="ema-13">—</strong></span><span>EMA 21 <strong id="ema-21">—</strong></span><span>EMA 34 <strong id="ema-34">—</strong></span><span>EMA 48 <strong id="ema-48">—</strong></span></div>
+      </section>
+      <section id="setups" class="panel setups-panel" aria-labelledby="setups-title"><div class="panel-heading"><div><p class="eyebrow">03 / SIGNAL JOURNAL</p><h2 id="setups-title">Session setups <span id="signal-count" class="count">0</span></h2></div><span class="badge neutral">REPLAY / OBSERVATIONS</span></div><p class="panel-intro">Entry and original stop stay frozen. Target-touch evidence is separate from managed exits.</p><div id="signals"><div class="empty-state compact"><strong>No published signals</strong><p>Signals appear after a successful session replay. An empty journal does not imply a tested no-trade decision.</p></div></div></section>
+      <section class="panel levels-panel" aria-labelledby="levels-title"><div class="panel-heading"><div><p class="eyebrow">04 / PRICE REFERENCES</p><h2 id="levels-title">Level ladder</h2></div><span class="badge neutral">SPY</span></div><div class="table-scroll"><table><thead><tr><th>Level</th><th class="numeric">Price</th><th class="numeric">Distance</th></tr></thead><tbody id="levels-body"><tr><td colspan="3" class="table-empty">No levels published</td></tr></tbody></table></div><p class="panel-footnote">Daily ATR levels are anchored to the previous close. Manual gamma walls appear here only when current and on a SPY basis.</p></section>
+      <section id="context" class="panel context-panel" aria-labelledby="context-title"><div class="panel-heading"><div><p class="eyebrow">05 / OPTIONAL CONTEXT</p><h2 id="context-title">Unusual Whales</h2></div><span id="uw-status" class="badge neutral">MANUAL / PLACEHOLDER</span></div><p id="uw-meta" class="panel-intro">Awaiting a manual snapshot. Missing values are unavailable, not zero.</p><div class="context-grid"><article><h3>Gamma structure</h3><dl id="gamma-fields"></dl></article><article><h3>Options flow</h3><dl id="flow-fields"></dl></article><article><h3>Other references</h3><dl id="other-fields"></dl></article></div><div id="uw-notes"></div><p class="panel-footnote">Context only. Gamma estimates and flow labels depend on the provider’s methodology. They do not alter the frozen setup rules or historical probabilities. SPX values remain on a SPX basis.</p></section>
+      <section id="evidence" class="panel evidence-panel" aria-labelledby="evidence-title"><div class="panel-heading"><div><p class="eyebrow">06 / EVIDENCE REGISTER</p><h2 id="evidence-title">Know what the numbers support</h2></div><span id="evidence-state" class="badge amber">DEVELOPMENT</span></div><div class="evidence-summary"><div><strong id="evidence-sessions">—</strong><span>historical sessions</span></div><div><strong id="evidence-period">—</strong><span>training / development period</span></div><p id="event-definition">Event: target touched before the original stop and before the session closes.</p></div><div class="table-scroll"><table class="evidence-table"><thead><tr><th>Setup / cohort</th><th class="numeric">Episodes</th><th class="numeric">Sessions</th><th class="numeric">T1 hits</th><th class="numeric">Raw rate</th><th class="numeric">95% interval</th></tr></thead><tbody id="evidence-body"><tr><td colspan="6" class="table-empty">Evidence file unavailable</td></tr></tbody></table></div><p class="panel-footnote">Cohort totals describe the historical sample. Setup cards use the narrower target and reward-to-risk group. These are development observations, not validated forecasts or option-return probabilities.</p><details class="methodology"><summary>Method, limitations, and provenance <span aria-hidden="true">+</span></summary><div id="evidence-method"></div><ul id="evidence-limitations"></ul><div id="runtime-notes"></div></details></section>
+      <section class="learning-panel" aria-labelledby="learning-title"><div><p class="eyebrow">07 / CONTROLLED LEARNING</p><h2 id="learning-title">Capture daily. Change deliberately.</h2><p>Log the lesson, register one testable hypothesis, then evaluate the challenger on new sessions. The dashboard does not tune its rules automatically.</p></div><a class="button-link" href="https://github.com/carterwaynereed/SATY/tree/main/learning" target="_blank" rel="noopener noreferrer">Open learning register <span aria-hidden="true">↗</span></a></section>
+    </div>
+    <footer><div><strong>SATY</strong><span>Signal and decision support only · No orders</span></div><div><span id="version-label">saty-sig-2.0 · RTH variant</span><a href="https://github.com/carterwaynereed/SATY" target="_blank" rel="noopener noreferrer">Source & audit ↗</a></div></footer>
+  </main>
+  <noscript><p class="noscript">JavaScript is required to read the published JSON snapshots. View the source files in the GitHub repository.</p></noscript>
+</body>
+</html>

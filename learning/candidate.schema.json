@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Rule candidate record",
+  "type": "object",
+  "required": [
+    "record_id",
+    "candidate_id",
+    "recorded_at",
+    "status",
+    "supersedes_record_id",
+    "source",
+    "baseline_version",
+    "baseline_commit",
+    "hypothesis",
+    "rule_delta",
+    "rationale",
+    "primary_metric",
+    "minimum_effect",
+    "guardrails",
+    "data_requirements",
+    "training_interval",
+    "untouched_evaluation_interval",
+    "episode_definition",
+    "overlap_policy",
+    "exclusion_rules",
+    "inference_plan",
+    "review_date",
+    "candidate_code_commit",
+    "decision"
+  ],
+  "properties": {
+    "record_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "candidate_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "recorded_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status": {
+      "enum": [
+        "RESEARCH",
+        "REGISTERED",
+        "SHADOW",
+        "REVIEW",
+        "PROMOTED",
+        "REJECTED",
+        "RETIRED"
+      ]
+    },
+    "supersedes_record_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "type",
+        "locator",
+        "captured_at",
+        "paraphrase",
+        "public_safe"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "audit",
+            "youtube",
+            "discord",
+            "analysis",
+            "other"
+          ]
+        },
+        "locator": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "published_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "captured_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timestamp_or_message_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "paraphrase": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "public_safe": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "baseline_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "baseline_commit": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "hypothesis": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "rule_delta": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "rationale": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "primary_metric": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "minimum_effect": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "guardrails": {
+      "type": "array"
+    },
+    "data_requirements": {
+      "type": "array"
+    },
+    "training_interval": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "untouched_evaluation_interval": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "episode_definition": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "overlap_policy": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "exclusion_rules": {
+      "type": "array"
+    },
+    "inference_plan": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "review_date": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "candidate_code_commit": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "decision": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": false
+}

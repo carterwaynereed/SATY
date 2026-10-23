@@ -1,0 +1,22 @@
+{
+  "source": "User-supplied saty_bundle.zip",
+  "strategy_version": "saty-sig-2.0",
+  "sha256": {
+    "engine/audit_tests.py": "faff2a7e3d2aae18f48d235345aa058f97def2a18943ad77a7274dd8fa796105",
+    "engine/build_stats2.py": "84d6a804c8afadc6d031ed126f0121cbc485e00f52c8849a8b84b115e49efee0",
+    "engine/core.py": "1b10324a797389d22e47a152f6ca7762f9b7c2fcaf0f6249331c35b6b2451f03",
+    "engine/engine.py": "43d63d143e18ec66ee89bc58fdec70e9dbb1017ac48b8e5cfeb0e0ae58bfd2a2",
+    "engine/lib/probmodel.py": "146922f0b018dc971037f37d126fef9d85cba031a1b623d11b48b2c4740d7c3f",
+    "engine/lib/strategy.py": "712590eabe2e93be3c44c0bd532bc050ca14fa88b25adcc12039e2ed6b4d783a",
+    "engine/lib/strategy_po.py": "7002db33cf99af898019edf661e82a9810f28070ffb782d910cffc2f1316638b",
+    "engine/lib/strategy_v2.py": "488b5020f460f10c94f021ce8542be1da298d34c425d19b2739bd3ed7d676c5c",
+    "engine/lib/strategy_v3.py": "f2b71f57f8510c396142d111f5d7783d3751ca29e3ae60597d33e08682cf1479",
+    "engine/loop.py": "481f30e1d320d077f3ff155369fd311fc2cb95a2b02e83a0d0824f8695a28d3a",
+    "engine/probs.py": "1ec82725103c8e467ff2c79e4959f375119b0e0fe48f9e2abf00b7b504135744",
+    "engine/probs2.py": "325fd4cb083094c4ff913a1611104cabdb95c91fb396a495fdc5df28904e3e0a",
+    "engine/sig2.py": "565366a9627e5c8364cabe768577fb1bc922fab4c0d9f6ef05c5a5d66dbfb6ed",
+    "engine/snapshot.py": "76fc42a070bf4b593f447aec46d3ddbd32925634e3c3327c9b73f07543e8e82c",
+    "engine/tvdata.py": "d645c90b373bf9bd918baec4710852884cb7aedf8ff0b3fc7b2bfefaacb60f24",
+    "stats/signal_stats_v2.json": "bd4921dc15e602d233d045f1803faa25ef9cf66133d853e58e7d86e5d36656c1"
+  }
+}

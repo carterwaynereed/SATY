@@ -1,0 +1,6 @@
+# Tested direct dependencies; update deliberately and rerun the offline suite.
+numpy==2.3.5
+pandas==2.2.3
+websockets==16.0
+yfinance==0.2.66
+exchange-calendars==4.13.2
