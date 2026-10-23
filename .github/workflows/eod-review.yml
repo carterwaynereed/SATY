@@ -1,0 +1,45 @@
+name: Daily EOD review and engine health
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 21:10 UTC = 16:10 ET in standard time and 17:10 ET in daylight time.
+    - cron: '10 21 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: saty-eod-review
+  cancel-in-progress: false
+
+jobs:
+  review:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Restore dashboard-data persistent state
+        run: python scripts/sync_state.py prepare
+      - name: Grade confirmed-bar outcomes and check engine health
+        run: python scripts/daily_eod_review.py
+      - name: Persist review, alarms, and dated challenger changelog
+        run: python scripts/sync_state.py commit
+      - name: Verify emitted review documents
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          for name in ('eod-review.json','health-alarms.json','changelog.json'):
+              data=json.loads((Path('site/data')/name).read_text())
+              assert data.get('schema_version') == 1, name
+          print('EOD review, health alarms, and changelog JSON validated.')
+          PY

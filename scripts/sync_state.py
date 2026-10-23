@@ -11,7 +11,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 WORK = ROOT / '.dashboard-state'
 BRANCH = 'dashboard-data'
-PUBLIC_FILES = ('latest.json', 'evidence.json', 'uw.json', 'learning.json', 'market.json', 'tv-evidence.json')
+PUBLIC_FILES = ('latest.json', 'evidence.json', 'uw.json', 'learning.json', 'market.json', 'tv-evidence.json', 'eod-review.json', 'health-alarms.json', 'changelog.json', 'challengers.jsonl')
 
 
 def git(*args, cwd=ROOT, check=True, capture=False):
@@ -34,8 +34,9 @@ def prepare():
     else:
         raise RuntimeError('Could not check the remote data branch; refusing to overwrite state.')
     (WORK / 'state').mkdir(exist_ok=True)
-    if (WORK / 'latest.json').exists():
-        shutil.copyfile(WORK / 'latest.json', ROOT / 'site/data/latest.json')
+    for name in PUBLIC_FILES:
+        if (WORK / name).exists():
+            shutil.copyfile(WORK / name, ROOT / 'site/data' / name)
     print('Durable public state prepared.')
 
 
@@ -45,12 +46,16 @@ def commit():
     # One Git commit publishes the complete shared public bundle. Browser clients
     # still compare evidence IDs because CDN caches can serve files of different ages.
     for name in PUBLIC_FILES:
-        shutil.copyfile(ROOT / 'site/data' / name, WORK / name)
+        source = ROOT / 'site/data' / name
+        if source.exists():
+            shutil.copyfile(source, WORK / name)
+        elif name in ('latest.json', 'evidence.json', 'uw.json', 'learning.json', 'market.json', 'tv-evidence.json'):
+            raise RuntimeError(f'Required generated dashboard file is missing: {name}')
     (WORK / 'README.md').write_text(
         '# Generated dashboard observations\n\n'
         'Updated by the main-branch dashboard workflow. Source code and manual '
         'Unusual Whales inputs live on main. Do not store credentials or private lessons here.\n\n'
-        '`market.json`, `tv-evidence.json`, `latest.json`, `evidence.json`, `uw.json` and `learning.json` are the shared '
+        '`market.json`, `tv-evidence.json`, `latest.json`, `evidence.json`, `uw.json`, `learning.json`, `eod-review.json`, `health-alarms.json`, `changelog.json` and `challengers.jsonl` are the shared '
         'public JSON bundle consumed by the Saty+ home and the optional Pages mirror. '
         'They are committed together; consumers must still validate timestamps and '
         'match the snapshot evidence ID to the evidence statistics ID.\n\n'
