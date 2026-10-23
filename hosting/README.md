@@ -2,9 +2,9 @@
 
 **Home:** https://saty-plus-trading-desk.zestyfawn9.chatgpt.site/
 
-The existing owner-private audience, Site identity and R2 `BUCKET` are preserved. The optional GitHub Pages mirror has the same frontend source but no private journal or live Worker endpoint. The home remains the primary desk.
+The home is public without a login, at Carter's explicit request. Site identity and the R2 `BUCKET` are preserved. GitHub Pages serves the same frontend and reads the home's public live API. The paper journal has separate application authorization and is never available to anonymous readers or to Pages. The home remains the primary desk.
 
-## Shared source, different data transports
+## Shared source and live data
 
 `site/` is the canonical buildless HTML/CSS/JS/canvas frontend. There are no npm dependencies, external fonts, framework runtime or chart libraries. `hosting/build.mjs` bundles the public assets and required market/paper modules into a Worker ES module. Validation enforces a 500 KB static asset budget, including all four ticker seeds and development evidence.
 
@@ -12,11 +12,13 @@ On the home, `GET /api/market` reads the no-login public TradingView chart WebSo
 
 Full-session monitoring runs 09:30–16:00 ET, respecting the exchange calendar, independently of entry windows. Confirmed close age above 225 seconds in-session, invalid data or retrieval failure yields DATA HOLD. Opening-bar formation and closed-session reference states are explicit. The free endpoint's native 10m resolution was unsupported; ten-minute candles therefore require exactly ten completed 1m bars.
 
-The market cache uses **`saty-plus/market-v2.json`**. It is separate from the original private journal. `lib/hosted-snapshot.mjs` retains **`saty-plus/desk-v1.json`**, its compare-and-swap writes, generated timestamps and schema. The original `GET /api/snapshot` and scheduled `POST /api/update` contract remain intact. Sites authenticates the private audience before requests reach the Worker; do not deploy this journal binding on a public origin.
+The market cache uses **`saty-plus/market-v2.json`**. It is separate from the original private journal. `lib/hosted-snapshot.mjs` retains **`saty-plus/desk-v1.json`**, its compare-and-swap writes, generated timestamps and schema. `GET /api/snapshot` now checks the signed-in owner's platform identity or a scoped service credential before reading storage. Scheduled `POST /api/update` requires that service credential; an Origin header is also rejected. Missing runtime settings fail closed. The public dashboard never requires owner sign-in.
+
+Runtime secrets `SATY_JOURNAL_OWNER_EMAIL` and `SATY_JOURNAL_SERVICE_KEY` are configured with the native Sites environment tool, never in source or browser assets. The former comes from the verified owner's access-policy record. The latter is the lowercase SHA-256 hex of the UTF-8 string `saty-journal-service-v1` + a NUL byte + the current Sites service bypass token. The updated `sync-site.mjs` derives that credential in memory from its existing hidden-stdin token and sends `X-Saty-Journal-Authorization: Bearer <derived key>`. Dispatch consumes the original Sites header; it does not supply a visitor identity. Older uploader copies lack application authorization and must be updated. If the bypass token is intentionally rotated, update the runtime derived key and redeploy before resuming the updater. Never print either credential.
 
 The original local scanner remains in `scan.mjs`, `ingest.mjs`, `server.mjs` and `sync-site.mjs`. Its ignored `/data/` directory is never synchronized to GitHub or embedded in the site. Its paper engine is separate from SATY. No broker, order or automatic webpage paper-trading service exists.
 
-Pages reads scheduled `market.json` from `dashboard-data`, with `tv-evidence.json`, legacy `latest.json`/`evidence.json`, manual `uw.json` and `learning.json`. Actions updates the reference about every ten minutes; that interval must not be described as the home's live refresh rate. The home fetches its own market data and does not depend on an Action finishing on time.
+Pages requests the exact home `/api/market` and `/api/evidence`, with credentials omitted. Both endpoints permit read-only CORS for `https://carterwaynereed.github.io`, expose ETags, and support cached preflight and 304 replies. Private endpoints never grant CORS. Market and evidence caches are scoped by URL in the browser. The shared manual `uw.json` and `learning.json` still come from `dashboard-data`. Actions maintains scheduled `market.json` and legacy JSON for reference/audit; those files are not the Pages live transport. A failed live read leaves explicitly held/reference data, not a substitute live claim.
 
 ## Automatic deployment limit and one-step manual release
 
@@ -43,7 +45,7 @@ That command **copies source only; it does not build, push or publish the Site**
 3. From the SATY checkout, run `node hosting/sync-source.mjs /absolute/existing-site-checkout`. It copies tracked source, removes obsolete tracked files and preserves destination identity, Git history and untracked private/runtime state. It does not copy `/data/`, `state/` or credentials.
 4. Stage the Site checkout so removed tracked paths leave `git ls-files`, then run the sync command with `--check` to verify byte-identical source. Resolve discrepancies before packaging.
 5. Build and validate the Site through the supported helper's ordered commands, or run `npm run build` directly when appropriate. No dependency installation is needed. The source manifest must retain the existing project ID and `r2: "BUCKET"`; omit `static` because Worker API routes are required. The build imports the resulting Worker and smoke-tests its index.
-6. Use the Sites source helper to push/package that exact checked source commit, then save/deploy through the owner-private native Sites operation. Retain returned version/deployment IDs and stop on terminal status. Verify the deployed market endpoint and that the original private journal count/hash remain preserved. Main and Site publication are separate, explicit releases.
+6. Use the Sites source helper to push/package that exact checked source commit, then call native `save_site_version` and `deploy_site_version` for the public audience. Retain returned version/deployment IDs and stop on terminal status. Verify anonymous public reads, denied private requests, matching assets and authorized private journal count/hash. Main and Site publication are separate, explicit releases. Do not use a private-only publishing operation for this now-public Site.
 
 Credentials belong only in session memory and the helper's hidden stdin, never command arguments, repository files or logs. Existing audience and storage identity must not change during a code sync.
 
@@ -53,4 +55,4 @@ The new evidence bundle contains 34 same-feed development sessions for every tic
 
 `node --test tests/*.test.mjs` covers routes, private storage, live-feed parsing/cache behavior, evidence math, freshness, target gates and Python-to-JS engine parity. Python tests cover calendar/causality, evidence reconstruction and durable observations. The committed `docs/saty-plus-live-preview.jpg` is an actual QA interface capture, not a promise that its displayed values are current.
 
-`verify-live.mjs` is the optional read-only deployed-site check. Start it with a PTY and supply the freshly obtained Sites bypass credential through hidden stdin. It reports market summaries and a private journal count/checksum without exposing journal rows or the credential. It does not write the private snapshot. A market check must distinguish fresh confirmed bars from a dated bundled/reference response; opening the page alone is insufficient verification.
+`verify-live.mjs` is the optional read-only authenticated check. Start it with a PTY and supply the freshly obtained Sites bypass credential through hidden stdin. It derives the scoped journal key and reports a private journal count/checksum without exposing journal rows or credentials. It never writes the snapshot. `node hosting/verify-public.mjs` checks anonymous access, exact-origin CORS, 304 replies, private-route denial and deployed asset identity. Add `--require-pages` after Pages is enabled. A market check distinguishes fresh confirmed bars from dated or closed-session reference responses; opening the page alone is insufficient verification.

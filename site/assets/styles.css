@@ -17,3 +17,5 @@
 .watch small{grid-column:1 / -1;white-space:normal;overflow-wrap:anywhere}.watch{min-width:0;align-content:start}.watch-price{white-space:nowrap}#weight-math{color:var(--text);font-variant-numeric:tabular-nums}#study-status{border-left:2px solid var(--border);padding-left:10px}
 
 #ticker-select{font:inherit;color:var(--lime);background:#20281f;border:1px solid #4f6245;border-radius:5px;padding:5px 7px}#ticker-select:focus-visible{outline:2px solid var(--lime);outline-offset:3px}
+
+.public-links{margin:0 0 16px}.public-links a{white-space:nowrap}

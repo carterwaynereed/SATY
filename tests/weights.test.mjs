@@ -29,6 +29,8 @@ test('midday entry pause and missing trigger do not override fresh RTH row math'
 });
 test('closed session and absent indicators stay neutral', () => {
   assert.deepEqual(allocation(allocateEvidenceWeights(rows([1,1,1,1,1,1]),{fresh:true,inSession:false})),[0,0,100]);
+  const closed=allocateEvidenceWeights(rows([1,1,1,1,1,1]),{fresh:false,inSession:false});
+  assert.deepEqual(allocation(closed),[0,0,100]);assert.match(closed.reason,/Outside the regular session/);
   assert.deepEqual(allocation(allocateEvidenceWeights([],live)),[0,0,100]);
 });
 test('every possible combination totals 100 points without negative percentages', () => {

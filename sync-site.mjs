@@ -1,4 +1,5 @@
 import {snapshot,saveJSON} from './scan.mjs';
+import {createHash} from 'node:crypto';
 const SITE='https://saty-plus-trading-desk.zestyfawn9.chatgpt.site';
 // Access is supplied by the owning task from Sites get_site, in memory only.
 // No market-provider credentials are used here. Never put tokens in arguments.
@@ -14,11 +15,15 @@ const access=await new Promise((resolve,reject)=>{
  process.stdin.on('end',()=>{try{resolve(JSON.parse(input));}catch{reject(new Error('Missing access input'));}});
 });
 try{
- if(access.site!==SITE||typeof access.token!=='string'||access.token.length<20)throw new Error('Access must be for the configured private Site');
+ if(access.site!==SITE||typeof access.token!=='string'||access.token.length<20)throw new Error('Access must be for the configured Site');
  const state=await snapshot();
  for(const symbol of ['SPX','AAPL','GOOGL'])state.feeds.symbols[symbol]={bars:[],daily:[],error:symbol==='SPX'?'SPX paused: Unusual Whales requires provisioned Cboe index access':'Paused: SPY-only focus'};
  delete state.analyses;
- const headers={'OAI-Sites-Authorization':`Bearer ${access.token}`};
+ // The public Site no longer treats platform service access as authorization
+ // for private records. Derive its scoped journal credential in memory only.
+ // The owner configures the matching secret in Sites runtime settings.
+ const journalKey=createHash('sha256').update('saty-journal-service-v1\0'+access.token).digest('hex');
+ const headers={'OAI-Sites-Authorization':`Bearer ${access.token}`,'X-Saty-Journal-Authorization':`Bearer ${journalKey}`};
  const response=await fetch(SITE+'/api/update',{method:'POST',headers:{...headers,'Content-Type':'application/json','X-Saty-Update':'1'},body:JSON.stringify(state),redirect:'error',signal:AbortSignal.timeout(20000)});
  if(!response.ok)throw new Error(`Hosted update failed (${response.status})`);
  const result=await response.json();

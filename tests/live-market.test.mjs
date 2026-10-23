@@ -79,11 +79,23 @@ test('failed refresh retains prior prices as references and never keeps fresh al
   for(const symbol of SYMBOLS){assert.equal(held.symbols[symbol].market.last,prior.symbols[symbol].market.last);assert.equal(held.symbols[symbol].health.state,'UNAVAILABLE');assert.equal(held.symbols[symbol].evidence_weights.fresh,false);assert.equal(held.symbols[symbol].evidence_weights.wait,100);}
 });
 
-test('market API is read-only, private/no-store, and does not expose private journal state or CORS access',async()=>{
+test('public market API shares exact data with Pages, supports conditional reads, and never reads the private journal',async()=>{
   const x=setup();let privateReads=0,privateWrites=0;
   const worker=createWorker({},async()=>{privateReads++;return {journal:['PRIVATE']};},async()=>{privateWrites++;},x.get);
   const response=await worker.fetch(new Request('https://desk.example/api/market'),{BUCKET:x.bucket});
-  assert.equal(response.status,200);assert.match(response.headers.get('Cache-Control'),/private, no-store/);assert.equal(response.headers.get('Access-Control-Allow-Origin'),null);
-  assert.doesNotMatch(await response.text(),/PRIVATE|journal/);assert.equal(privateReads,0);assert.equal(privateWrites,0);
+  assert.equal(response.status,200);assert.equal(response.headers.get('Cache-Control'),'no-store');assert.equal(response.headers.get('Access-Control-Allow-Origin'),null);
+  const home=await response.text();assert.doesNotMatch(home,/PRIVATE|journal/);assert.equal(privateReads,0);assert.equal(privateWrites,0);
+  const origin='https://carterwaynereed.github.io';
+  const mirrored=await worker.fetch(new Request('https://desk.example/api/market',{headers:{Origin:origin}}),{BUCKET:x.bucket});
+  assert.equal(mirrored.status,200);assert.equal(await mirrored.text(),home);
+  assert.equal(mirrored.headers.get('Access-Control-Allow-Origin'),origin);assert.equal(mirrored.headers.get('Access-Control-Allow-Credentials'),null);
+  const etag=mirrored.headers.get('ETag');assert.ok(etag);assert.equal(etag,response.headers.get('ETag'));
+  const cached=await worker.fetch(new Request('https://desk.example/api/market',{headers:{Origin:origin,'If-None-Match':etag}}),{BUCKET:x.bucket});
+  assert.equal(cached.status,304);assert.equal(await cached.text(),'');assert.equal(cached.headers.get('Access-Control-Allow-Origin'),origin);
+  x.set('2026-10-23T14:03:05Z');
+  const newer=await worker.fetch(new Request('https://desk.example/api/market',{headers:{Origin:origin,'If-None-Match':etag}}),{BUCKET:x.bucket});
+  assert.equal(newer.status,200);assert.notEqual(newer.headers.get('ETag'),etag);
+  assert.equal((await newer.json()).symbols.SPY.health.price_asof,'2026-10-23T14:03:00.000Z');
+  assert.equal(privateReads,0);assert.equal(privateWrites,0);
   for(const method of ['POST','PUT','DELETE'])assert.equal((await worker.fetch(new Request('https://desk.example/api/market',{method}),{BUCKET:x.bucket})).status,404);
 });
