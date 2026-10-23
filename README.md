@@ -4,7 +4,7 @@
 
 Saty+ is Carter's signal-only decision and research desk for **SPY, SPX, AAPL and GOOGL**. The existing layout, session strip, ticker cards, level map, paper journal and playbook are retained. Every ticker now uses the same confirmed-bar SATY implementation, with its own ATR levels, ribbon, phase, setups, feed health and development evidence. There is no broker connection, order endpoint or options-return forecast.
 
-The shared frontend is plain HTML, CSS, JavaScript and a canvas chart. The hosted home adds a dependency-free Worker. No frontend framework, external font, chart package or npm dependency is required. Validation enforces a **500 KB static asset budget**, including the four-ticker seed snapshots and evidence bundle.
+The shared frontend is plain HTML, CSS, JavaScript and a canvas chart. The optional GitHub Pages mirror includes a Power Hour / EOD page (site/eod.html) and a scheduled daily review workflow (.github/workflows/eod-review.yml). The hosted home adds a dependency-free Worker. No frontend framework, external font, chart package or npm dependency is required. Validation enforces a **500 KB static asset budget**, including the four-ticker seed snapshots and evidence bundle.
 
 ![Saty+ four-ticker desk verification capture](docs/saty-plus-live-preview.jpg)
 
@@ -103,3 +103,12 @@ python scripts/refresh_tv_market.py --output site/data/market.json
 To capture a new, separately dated development dataset, run `python scripts/rebuild_tv_evidence.py`, review its provenance and parity tests, then commit it. No automatic challenger promotion occurs. `node server.mjs` remains the optional local paper-scanner server. Private `/data/`, credentials and environment files are ignored and must never be force-added.
 
 See [architecture](docs/ARCHITECTURE.md), [hosting](hosting/README.md), [evidence provenance](docs/TV_EVIDENCE.md), and the [supplied audit](docs/supplied-audit.md).
+
+
+## Power Hour / EOD and daily engine checks
+
+The Pages mirror includes [Power Hour / EOD](https://carterwaynereed.github.io/SATY/eod.html), with SPY/SPX selectors, ATR reference levels, confirmed 3m phase/compression context, swing-based demand/supply candidates, a 15:50 ET countdown, and explicitly manual options-leaderboard, max-pain and GEX panels. EOD-01 through EOD-05 are unvalidated candidates with no assigned probabilities. The currently published market bundle carries confirmed 3m bars, not 1m bars; the 1m detector therefore displays DATA HOLD rather than inventing data.
+
+A separate GitHub Actions workflow runs daily at 21:10 UTC (after 16:00 ET in both standard and daylight time). It grades recorded signal observations against the next five available confirmed bars, records sample counts and Wilson intervals, checks stale feed state and a conservative all-day-WAIT/large-range condition, and logs challenger candidates in shadow mode. The dashboard-data branch persists review JSON, alarm history, changelog and challenger registry; it does not change the frozen baseline. Promotion still requires at least 30 sessions, 100 nonduplicated episodes, pre-registered effect/guardrails, session-cluster uncertainty, cost/delay stress and a reviewed PR.
+
+**Important limits:** the current shared snapshot does not contain a per-bar historical WAIT ledger or a 1m bar series. The daily WAIT count is therefore a current-state proxy, not a fabricated count of every intraday WAIT. EOD manual option/gamma values are browser-local notes and are not synced as verified market data. The scheduled job creates research candidates, never promotes a rule or places orders.
