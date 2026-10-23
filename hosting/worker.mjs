@@ -1,6 +1,6 @@
 // Sites enforces the existing owner-private audience before invoking this Worker.
 // Keep the private paper journal behind that boundary; never proxy it to Pages.
-export function createWorker(assets, readHosted, writeHosted) {
+export function createWorker(assets, readHosted, writeHosted, getMarket = null) {
   const json = (value, status = 200) => Response.json(value, {
     status,
     headers: {'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}
@@ -8,6 +8,18 @@ export function createWorker(assets, readHosted, writeHosted) {
   return {
     async fetch(request, env) {
       const {pathname} = new URL(request.url);
+      if (pathname === '/api/market' && request.method === 'GET') {
+        if (!getMarket) return json({error:'Live TradingView adapter is not configured'}, 503);
+        try {
+          const market=await getMarket(env.BUCKET);
+          const revision=market.generated_at+'|'+Object.entries(market.symbols).map(([s,v])=>s+':'+v.health?.state+':'+v.session?.calendar_date).join('|');
+          const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(revision));
+          const etag='W/"'+Array.from(new Uint8Array(digest),n=>n.toString(16).padStart(2,'0')).join('')+'"';
+          if(request.headers.get('if-none-match')===etag)return new Response(null,{status:304,headers:{ETag:etag,'Cache-Control':'private, no-store'}});
+          const response=json(market);response.headers.set('ETag',etag);return response;
+        }
+        catch {return json({error:'TradingView market refresh failed; retain reference bars and DATA HOLD'}, 503);}
+      }
       if (pathname === '/api/snapshot' && request.method === 'GET') {
         if (!env.BUCKET) return json({error:'Hosted storage is not configured'}, 503);
         try {

@@ -28,7 +28,7 @@ class StateBranchTests(unittest.TestCase):
             (source / 'site/data').mkdir(parents=True)
             shutil.copyfile(SCRIPT, source / 'scripts/sync_state.py')
             (source / 'site/data/latest.json').write_text('{"snapshot":1}\n')
-            for name in ('evidence.json', 'uw.json', 'learning.json'):
+            for name in ('evidence.json', 'uw.json', 'learning.json', 'market.json', 'tv-evidence.json'):
                 (source / 'site/data' / name).write_text('{"source":"main","version":1}\n')
             (source / 'README.md').write_text('Source branch\n')
             run('git', 'add', '.', cwd=source)
@@ -46,7 +46,7 @@ class StateBranchTests(unittest.TestCase):
             self.assertNotIn('scripts/', generated)
             self.assertIn('state/observations.jsonl', generated)
             self.assertIn('latest.json', generated)
-            for name in ('evidence.json', 'uw.json', 'learning.json'):
+            for name in ('evidence.json', 'uw.json', 'learning.json', 'market.json', 'tv-evidence.json'):
                 self.assertIn(name, generated)
             run('git', 'clone', '--branch', 'main', str(remote), str(second))
             run(sys.executable, 'scripts/sync_state.py', 'prepare', cwd=second)

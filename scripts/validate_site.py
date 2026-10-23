@@ -57,6 +57,24 @@ def main():
             if probability.get('n', 0):
                 assert 0 <= probability['hits'] <= probability['n']
     assert evidence['evidence_state'] == 'DEVELOPMENT'
+    market = load(site / 'data/market.json')
+    tv_evidence = load(site / 'data/tv-evidence.json')
+    assert market['schema_version'] == tv_evidence['schema_version'] == 2
+    assert set(market['symbols']) == set(tv_evidence['by_symbol']) == {'SPY', 'SPX', 'AAPL', 'GOOGL'}
+    validate_finite(market)
+    validate_finite(tv_evidence)
+    for symbol, snapshot in market['symbols'].items():
+        aware(snapshot['health'].get('price_asof'))
+        weights = snapshot['evidence_weights']
+        assert sum(weights[k] for k in ('call', 'put', 'wait')) == 100
+        assert all(0 <= weights[k] <= 100 for k in ('call', 'put', 'wait'))
+        for signal in snapshot.get('signals', []):
+            for target in signal.get('targets', []):
+                p = target['probability']
+                if p.get('display_probability') is not None:
+                    assert p['n'] >= 20 and p['episodes'] >= 20
+                    assert snapshot['health']['source']['baseline_compatible']
+                    assert 0 <= p['display_probability'] <= 1
     assert learning == summarize(ROOT / 'learning'), 'Regenerate learning.json from the learning registry'
     assert uw['status'] in ('placeholder', 'manual')
     assert uw['symbol'] in ('SPY', 'SPX')
