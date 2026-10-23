@@ -1,6 +1,16 @@
 # Dashboard JSON contract (v1)
 All times ISO 8601 including offset. Null means unavailable, never zero-imputed. Only confirmed bars.
-Money prices numeric rounded 4 decimals maximum. No NaN/Infinity. UI reads relative data/*.json.
+Money prices numeric rounded 4 decimals maximum. No NaN/Infinity.
+The Saty+ hosted home and Pages mirror read the same public bundle at
+`https://raw.githubusercontent.com/carterwaynereed/SATY/dashboard-data/`:
+`latest.json`, `evidence.json`, `uw.json`, and `learning.json`.
+Requests omit credentials. Bundled data is a labeled fallback, never proof of a fresh feed.
+The publishing workflow commits these four files together; CDN caches may still
+serve different revisions. A probability headline requires matching
+`latest.evidence_id` and `evidence.stats_id`, matching strategy versions, and the
+existing per-target sample, source, time and evidence gates. Metadata success
+does not override a failed or stale market-data request. Private hosted scanner
+snapshots and paper-journal records are a separate same-origin API, never this public bundle.
 ## site/data/latest.json
 {schema_version:1, generated_at, snapshot_id, strategy:{version:"saty-sig-2.0",name,session_basis:"RTH",notes:[]},
 session:{date,status:"OPEN|CLOSED|PREMARKET|HOLIDAY",open,close,timezone:"America/New_York",refresh_minutes:10},
@@ -31,3 +41,19 @@ gamma:{regime:null,net_gex:null,zero_gamma:null,call_wall:null,put_wall:null,uni
 flow:{net_premium:null,call_premium:null,put_premium:null,window:null,classification:null},
 dark_pool:{levels:[],note:null},max_pain:null,notes:[]}
 Manual inputs are contextual only; never modify probability or baseline setup rules. SPX data kept on SPX basis.
+## site/data/learning.json
+{schema_version:1,registry_id,baseline:{version:"saty-sig-2.0",session_basis:"RTH"},
+state:"RESEARCH|REGISTERED|SHADOW|REVIEW",candidate_count,
+active_challenger:null|{candidate_id,status,baseline_commit,challenger_commit,registered_at,review_date,
+primary_metric,minimum_effect,results:{sessions,eligible_episodes}},
+candidates:[{id,status,hypothesis,rule_delta,source:{type,locator,captured_at}}],
+promotion:{minimum_sessions:30,minimum_episodes:100,automatic:false,rules:[]},
+links:{guide,candidates,challengers}}
+
+`scripts/summarize_learning.py` deterministically derives this from the two
+append-only logs. It validates unique record IDs and correction links, requires
+a registered evaluation plan, and allows at most one active challenger across
+REGISTERED, SHADOW and REVIEW. Counts describe the registry, not performance.
+A promoted record needs the initial sample floor plus explicit review/PR/rollback
+metadata; this mechanical check does not itself establish the scientific quality
+of a promotion. No generated summary changes production rules.

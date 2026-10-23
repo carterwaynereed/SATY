@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+from summarize_learning import summarize
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -37,7 +38,8 @@ def main():
     latest = load(site / 'data/latest.json')
     evidence = load(site / 'data/evidence.json')
     uw = load(site / 'data/uw.json')
-    for value in (latest, evidence, uw):
+    learning = load(site / 'data/learning.json')
+    for value in (latest, evidence, uw, learning):
         assert value['schema_version'] == 1
         validate_finite(value)
     aware(latest.get('generated_at'))
@@ -55,6 +57,7 @@ def main():
             if probability.get('n', 0):
                 assert 0 <= probability['hits'] <= probability['n']
     assert evidence['evidence_state'] == 'DEVELOPMENT'
+    assert learning == summarize(ROOT / 'learning'), 'Regenerate learning.json from the learning registry'
     assert uw['status'] in ('placeholder', 'manual')
     assert uw['symbol'] in ('SPY', 'SPX')
     if uw['status'] == 'manual':

@@ -57,3 +57,30 @@ The RTH/ETH conviction discrepancy and development-sample limits remain visible.
 GitHub's actual CI and Pages deployment results are separate from these local
 checks. Pages requires the repository's publishing source to be GitHub Actions
 and the workflow to exist on `main`.
+
+## Saty+ merge verification — October 23, 2026
+
+The merge retains the existing desk's layout and the original paper-engine
+source, and uses SATY's separate 3m replay/evidence model. The 43 Python tests
+pass, as do the frontend, paper-engine, ingestion/storage and new Worker route
+JavaScript test files. The public payload validator reports 104,649 bytes and
+continues checking the original Python/statistics hashes. The dependency-free
+hosted Worker build is 128,639 bytes, including the public static assets.
+
+Browser checks covered the desk, setup evidence, learning view and 390px iframe
+viewport. There was no page-level horizontal overflow at the narrow size.
+The observed old 14:39 ET public feed correctly produced STALE SNAPSHOT and DATA
+HOLD. Exact-cell source-mismatched rates were withheld; development counts,
+Wilson intervals and n remained visible. Metadata not yet published on the data
+branch was explicitly identified as a bundled/reference copy. The production
+workflow publishes those metadata files alongside the next snapshot.
+
+The existing private R2 snapshot endpoint returned successfully before release.
+A checksum/count-only readback verifies preservation after publication without
+copying private records into the public repository. Worker tests preserve the
+same storage key, reject browser writes and oversized streamed updates, and
+return unavailable when storage cannot be read. The original model's journal
+and SATY's public observation log have distinct outcome definitions.
+
+This is software and integration verification. It is not new independent
+strategy validation, a performance claim, or a guarantee of scheduled latency.

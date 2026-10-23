@@ -28,6 +28,8 @@ class StateBranchTests(unittest.TestCase):
             (source / 'site/data').mkdir(parents=True)
             shutil.copyfile(SCRIPT, source / 'scripts/sync_state.py')
             (source / 'site/data/latest.json').write_text('{"snapshot":1}\n')
+            for name in ('evidence.json', 'uw.json', 'learning.json'):
+                (source / 'site/data' / name).write_text('{"source":"main","version":1}\n')
             (source / 'README.md').write_text('Source branch\n')
             run('git', 'add', '.', cwd=source)
             run('git', 'commit', '-m', 'base', cwd=source)
@@ -44,13 +46,18 @@ class StateBranchTests(unittest.TestCase):
             self.assertNotIn('scripts/', generated)
             self.assertIn('state/observations.jsonl', generated)
             self.assertIn('latest.json', generated)
+            for name in ('evidence.json', 'uw.json', 'learning.json'):
+                self.assertIn(name, generated)
             run('git', 'clone', '--branch', 'main', str(remote), str(second))
             run(sys.executable, 'scripts/sync_state.py', 'prepare', cwd=second)
             self.assertEqual((second / '.dashboard-state/state/observations.jsonl').read_text(), journal.read_text())
             (second / 'site/data/latest.json').write_text('{"snapshot":2}\n')
+            (second / 'site/data/uw.json').write_text('{"source":"main","version":2}\n')
             run(sys.executable, 'scripts/sync_state.py', 'commit', cwd=second)
             saved = run('git', '--git-dir', str(remote), 'show', 'dashboard-data:latest.json').stdout
             self.assertEqual(json.loads(saved), {'snapshot': 2})
+            saved_uw = run('git', '--git-dir', str(remote), 'show', 'dashboard-data:uw.json').stdout
+            self.assertEqual(json.loads(saved_uw), {'source': 'main', 'version': 2})
             self.assertEqual(run('git', '--git-dir', str(remote), 'rev-parse', 'main').stdout.strip(), original)
 
 
