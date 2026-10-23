@@ -11,7 +11,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 WORK = ROOT / '.dashboard-state'
 BRANCH = 'dashboard-data'
-PUBLIC_FILES = ('latest.json', 'evidence.json', 'uw.json', 'learning.json', 'market.json', 'tv-evidence.json', 'eod-review.json', 'health-alarms.json', 'changelog.json')
+PUBLIC_FILES = ('latest.json', 'evidence.json', 'uw.json', 'learning.json', 'market.json', 'tv-evidence.json', 'eod-review.json', 'health-alarms.json', 'changelog.json', 'challengers.jsonl')
 
 
 def git(*args, cwd=ROOT, check=True, capture=False):
@@ -51,7 +51,7 @@ def commit():
         '# Generated dashboard observations\n\n'
         'Updated by the main-branch dashboard workflow. Source code and manual '
         'Unusual Whales inputs live on main. Do not store credentials or private lessons here.\n\n'
-        '`market.json`, `tv-evidence.json`, `latest.json`, `evidence.json`, `uw.json`, `learning.json`, `eod-review.json`, `health-alarms.json` and `changelog.json` are the shared '
+        '`market.json`, `tv-evidence.json`, `latest.json`, `evidence.json`, `uw.json`, `learning.json`, `eod-review.json`, `health-alarms.json`, `changelog.json` and `challengers.jsonl` are the shared '
         'public JSON bundle consumed by the Saty+ home and the optional Pages mirror. '
         'They are committed together; consumers must still validate timestamps and '
         'match the snapshot evidence ID to the evidence statistics ID.\n\n'
