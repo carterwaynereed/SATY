@@ -1,109 +1,59 @@
-# Architecture and operating assumptions
+# Architecture and operating assumptions · 0.3
 
-The shared browser frontend reads four compact JSON files from the public
-`dashboard-data` GitHub branch. It never connects to TradingView, Yahoo Finance,
-Unusual Whales, Discord, a broker, or an order endpoint. The original private
-paper snapshot is read separately from the home Site’s same-origin authenticated
-API. Public data requests omit credentials. The frontend uses plain HTML, CSS,
-JavaScript, system fonts and a canvas chart; the private home has a minimal
-Worker preserving its R2 journal API. See `hosting/README.md` for source release
-and storage boundaries.
+The canonical source is SATY `main`; the existing Saty+ Site remains the home. Plain HTML/CSS/JS and canvas serve both the home and optional Pages mirror. The home adds a dependency-free Worker and keeps its existing owner-private audience. Static asset validation enforces a 500 KB budget including four-ticker seed data. There are no broker or order endpoints.
 
-## Update path
+## Home live path
 
-1. GitHub Actions checks the XNYS session calendar. The ten-minute UTC cron covers
-   both New York UTC offsets; the gate handles holidays and early closes.
-2. A one-shot Python adapter fetches data through the supplied public TradingView
-   reader, falling back to yfinance with the source identified. No account token
-   or login is stored. Availability and latency are not guaranteed by either path.
-3. Only completed regular-session bars enter replay. Daily ATR uses sessions before
-   the decision session. The supplied `saty-sig-2.0` rules stay unchanged.
-4. First observations and subsequent outcomes are written to durable public state.
-   The `dashboard-data` branch holds generated state, keeping machine updates out
-   of `main`. The workflow pushes without force and serializes deployments.
-5. The same workflow optionally deploys `site/` with GitHub Pages when configured.
-   The home does not depend on Pages availability. It does not rely on a
-   `GITHUB_TOKEN` push triggering another workflow.
-6. Source changes are copied from the canonical GitHub checkout into the existing
-   Site checkout with `hosting/sync-source.mjs`, verified byte-for-byte, then
-   packaged and privately published through the Sites workflow. Data changes
-   require no Site rebuild.
+1. The browser polls same-origin **`GET /api/market` every 15 seconds** while visible. A bundled four-ticker snapshot supplies identifiable first-paint context until retrieval completes; its original timestamps are retained.
+2. The Worker opens the public, unauthenticated TradingView chart WebSocket for SPY, SPX, AAPL and GOOGL. It records resolved source metadata, observed delay, symbol attempts and a source fingerprint. Primary symbols are `AMEX:SPY`, `TVC:SPX`, `NASDAQ:AAPL` and `NASDAQ:GOOGL`; SPX can fall back to `SP:SPX` with its actual delay disclosed.
+3. Only completed RTH 3m bars enter the common JS port of frozen `saty-sig-2.0`. Replay requires 400 continuous prior 3m bars, the display session's opening sequence, and at least 100 completed daily bars. ATR uses daily sessions strictly before the display session. The free endpoint's native 10m request was unsupported, so trend candles require exactly ten completed 1m constituents aligned to the session open.
+4. In-memory request coalescing and a separate R2 market cache avoid repeated history downloads. A successful snapshot is reused until the next 3m boundary plus approximately five seconds. Failed feeds are retried on subsequent eligible polls. The API uses an ETag and returns **304** for an unchanged representation; the browser independently ages the retained bar timestamp.
+5. The exchange calendar permits monitoring throughout **09:30–16:00 ET**, including periods outside setup entry windows, and supplies holidays/early closes. During an open session, a confirmed-bar close more than **225 seconds** old is held. Missing, invalid or failed feeds also produce DATA HOLD. Opening-bar formation and a completed closed session have separate reference states.
 
-`main` owns the code, frozen statistics, manual context, and learning registry.
-The generated data branch owns the current snapshot and observation journal.
+The displayed price is a confirmed bar close, not a tick quote. Source metadata without an explicit real-time declaration is not converted into a guaranteed exchange-real-time claim. A healthy historical download cannot make delayed bars current. SPX volume is unavailable and its VWAP vote is neutral.
 
-### Journal recovery and revisions
+## Directional rows and setup eligibility
 
-`observations.jsonl` is the authoritative append-only record of each event's first
-receipt. If a process stops after an append but before its atomic `index.json`
-save, the next refresh recovers event IDs and original receipt timestamps from
-that session's observation file instead of appending another first observation.
-Malformed journal data fails closed; it is not silently discarded.
+The six evidence weights are 25/25/10/15/10/15 for 3m ribbon, 10m ribbon, 13/48 conviction, VWAP, daily ATR trigger and a newly confirmed trigger. Bullish and bearish row totals are computed from each ticker's actual bars. Equal opposing weight is moved to WAIT; neutral weight also remains WAIT. The allocation sums to 100.
 
-Outcome records may repeat after an interrupted index save. Consumers must
-deduplicate them by `(id, outcome_hash)` when counting unique outcomes; retained
-append times remain useful for auditing receipt. Revision records describe
-entry geometry becoming available, subsequent provider revisions, and events
-being withdrawn or restored in a complete replay. Withdrawal is not inferred
-from a stale snapshot or from an earlier price timestamp. A lost index can
-repeat a revision record; deduplicate replay membership revisions by
-`(id, kind, price_asof)` when reconstructing state.
+Fresh in-session allocations remain visible when entry windows or setup rules say to wait. **Evidence direction and entry eligibility are distinct outputs.** Unusable or out-of-session data overrides allocation to 0/0/100. The UI exposes the row math and labels every allocation as an evidence weight, never an event probability.
 
-For real requests, `generated_at` and new `observed_at` values are set after data
-receipt. `health.request_started_at` preserves the beginning of retrieval so
-download latency is visible. An explicit `--now` remains deterministic for tests
-and replay. Model entries are still historical next-open references, never
-certified executable forward entries.
-When updating manual context, edit `site/data/uw.json` on `main`; a push triggers
-publication. Automatic data refreshes do not overwrite that slot.
+SATY entry windows and context detector windows remain frozen; observing the market through 16:00 does not extend those rules. The original paper scanner stays a separate model with its own windows, cost/time-exit assumptions and journal.
 
-## What a snapshot means
+## Storage boundaries
 
-The quote is a completed three-minute bar close with a timestamp. It is not a
-streaming quote. Ten-minute scheduled replay can discover a setup after its
-modeled next-open entry, target, or stop. An observation timestamp is distinct
-from a signal's decision and modeled entry timestamps. The page does not mark
-these old entries as new executable opportunities.
+| Record | Location | Purpose |
+| --- | --- | --- |
+| Live market cache | R2 `saty-plus/market-v2.json` | Public-source bars and same-engine snapshots; independent of the private journal |
+| Original private paper snapshot | R2 `saty-plus/desk-v1.json` | Preserved journal, generated timestamp and compare-and-swap update contract |
+| Static reference and supporting data | GitHub `dashboard-data` | `market.json`, `tv-evidence.json`, legacy `latest.json`/`evidence.json`, `uw.json`, `learning.json` |
+| Frozen source, evidence captures and rules | GitHub `main` | Reviewed code, raw compressed public history, development ledgers, manual inputs and learning registry |
+| Private local scanner state | Ignored root `/data/` | Original monitor state; never copied into public assets or GitHub |
 
-Freshness is recomputed in the browser as time passes. Feed errors retain
-identifiable last-known values and show DATA HOLD; refreshing the page does not
-make those values current. Scheduled observations are useful for latency and
-source audits, but cannot by themselves certify timely entry performance.
+`GET /api/snapshot` and the scheduled `POST /api/update` retain the original private paper contract. Sites authenticates the owner-private origin before Worker access. Pages has no private journal endpoint. External public-data requests omit Site credentials. Public source data and personal journal rows are never combined into a publicly deployed snapshot.
 
-## Strategy and evidence boundaries
+## Scheduled mirror and durable observations
 
-The frozen engine uses RTH history, including its 13/48 conviction calculation.
-The supplied audit reports a difference from Saty's extended-session conviction
-ribbon. This dashboard is a documented Saty-inspired implementation, not a claim
-of exact indicator or discretionary-trading parity.
+GitHub Actions continues its approximately ten-minute XNYS-gated schedule, covering both New York UTC offsets and finalization through close + 15 minutes. `scripts/refresh_tv_market.py` captures all four public TradingView feeds, then `scripts/build_market.mjs` runs the same JS engine to produce `market.json`. This is a **scheduled reference** for static Pages, not the hosted home's live transport. A delayed Action cannot meet the one-bar target.
 
-The 34-session sample is development data. Target-specific descriptive counts
-are separated by setup, cohort, target index and R bucket. Wilson intervals are
-shown as descriptive intervals with a session-correlation caveat. The original
-model's pooled-target calibration diagnostics are not validation of the new
-target-specific display. A source change, unknown feed identity, temporal
-leakage, or a thin cell suppresses headline estimates.
+The original Python refresh also preserves the public observation/outcome audit. First observations retain source, geometry, decision/observation times and the evidence available at receipt. Later outcomes, changed provider data and replay-membership revisions are separate append-only records. Restart recovery reconstructs first-observation IDs; outcome consumers deduplicate `(id, outcome_hash)` and membership revisions by `(id, kind, price_asof)`. A setup discovered after its modeled next-open entry is not certified timely forward performance.
 
-Unusual Whales values are manually supplied context. Gamma exposure is a vendor
-estimate under a declared method and expiry scope; no gamma/flow input changes
-the frozen probability or entry rule. SPX levels remain on an SPX basis. Missing
-values are null, never an assumed zero.
+The workflow persists generated files without changing `main` and optionally deploys `site/` to Pages. It does not rely on a generated-branch `GITHUB_TOKEN` push starting another workflow. Manual UW and learning edits originate on main; scheduled data generation does not overwrite their source files. Pages configuration, feed retrieval and persistence failures remain distinguishable.
 
-## Source preservation
+## Evidence and rule boundaries
 
-`engine/` contains the supplied Python files unchanged. `stats/` contains the
-supplied statistics unchanged. `docs/engine-manifest.json` records their SHA-256
-hashes and is checked in CI. Original audit scripts require raw historical files
-that were not included in the bundle; their prior results are supplied claims,
-not a newly reproduced full historical audit.
+The original Python engine and supplied statistics remain protected by SHA-256 manifest checks. New same-feed development evidence separately replays **34 complete sessions per ticker, September 4–October 22, 2026**. Captured daily/intraday data and stable episode ledgers are compressed under `stats/tv/`; the browser reads compact `tv-evidence.json`.
 
-The adapter has its own tests for timestamps, incomplete bars, state persistence,
-thin evidence and failure handling. New strategy proposals live in `learning/`
-and require a separate review/version change before promotion.
+Each cell names ticker, feed fingerprint, setup, cohort, target index and reward/risk bucket. It counts a target touch before the original stop by the 16:00 horizon, with next-open modeled entry, gap cancellation and uniform 3m stop-first ambiguity handling. Hits/n, episode/session counts, Wilson 95% descriptive intervals and target-first sensitivity remain visible. A headline requires n ≥ 20 and verified source/chronology/horizon compatibility. Evidence built after a decision cannot become a forecast made at that decision.
 
-## Relevant platform documentation
+All cells remain **DEVELOPMENT**. Direction is pooled within a cell; overlapping episodes and sessions are correlated. Wilson does not adjust for clustering. Neither counts nor the legacy calibration diagnostics establish live predictive skill. The JS port's 140-session-case parity test compares price references, indicators, 994 entry candidates and barrier outcomes to unchanged Python.
 
-- [GitHub Pages custom workflows](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)
-- [Scheduled workflow behavior](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)
-- [Configure the Pages publishing source](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)
-- [exchange_calendars](https://github.com/gerrymanoim/exchange_calendars)
+The engine's RTH 13/48 convention is explicit and differs from Saty's extended-session implementation described in the supplied audit. Manual gamma/flow/dark-pool observations remain context, with source time, method, expiry scope and instrument basis. Missing is null; stale or mismatched levels do not join a ladder. These inputs do not alter frozen rules or probabilities.
+
+Learning candidates require a sourced hypothesis, preregistered challenger and reviewed promotion with rollback. Appending a lesson or rebuilding a dataset is not an automatic production rule change.
+
+## Code release boundary
+
+A main push updates Actions/Pages; it does **not** permanently redeploy the private Site. Current Sites tools expose short-lived source credentials and short-lived publish-on-push behavior, not a permanent GitHub-to-Site webhook. A Site token is never embedded in Actions or this repository.
+
+The complete one-step user request is: **“Sync current carterwaynereed/SATY main to the existing Saty+ home and publish it, preserving its audience and journal.”** The Sites-enabled assistant then opens the existing checkout, synchronizes reviewed tracked source, validates, packages and publishes it. `node hosting/sync-source.mjs /absolute/existing-site-checkout` performs source copying only. See [the operator release procedure](../hosting/README.md).

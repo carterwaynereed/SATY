@@ -38,3 +38,15 @@ assert.equal(validPaperSnapshot({...savedPaper,journal:[null]}),false);
 assert.equal(validPaperSnapshot({...savedPaper,journal:[{symbol:'SPY',status:'closed',r:'1'}]}),false);
 assert.equal(validPaperSnapshot({...savedPaper,journal:[{symbol:'SPY',status:'unresolved',r:null}]}),true);
 console.log('Malformed cached/imported paper records are rejected before replacing the journal.');
+
+const streaming={...snapshot,health:{...snapshot.health,ttl_seconds:225},session:{...snapshot.session,refresh_seconds:15}};
+assert.equal(snapshotHealth(streaming,Date.parse('2026-10-23T15:00:45Z')).state,'CURRENT BAR');
+assert.equal(snapshotHealth(streaming,Date.parse('2026-10-23T15:00:46Z')).state,'STALE SNAPSHOT');
+const opening={market:{last:760},health:{state:'OPENING',price_asof:'2026-10-22T20:00:00Z'},session:{date:'2026-10-22',calendar_date:'2026-10-23',status:'OPEN',open:'2026-10-22T13:30:00Z',close:'2026-10-22T20:00:00Z'}};
+assert.equal(snapshotHealth(opening,Date.parse('2026-10-23T13:31:00Z')).state,'FIRST BAR FORMING');
+assert.equal(snapshotHealth(opening,Date.parse('2026-10-23T13:33:01Z')).state,'DATA HOLD');
+const oldAtClose={...streaming,health:{...streaming.health,state:'STALE',price_asof:'2026-10-23T19:54:00Z'}};
+assert.equal(snapshotHealth(oldAtClose,Date.parse('2026-10-23T19:59:59Z')).tone,'hold');
+assert.equal(snapshotHealth(oldAtClose,Date.parse('2026-10-23T20:00:00Z')).state,'SESSION CLOSED');
+assert.equal(snapshotHealth({...oldAtClose,health:{...oldAtClose.health,state:'UNAVAILABLE'}},Date.parse('2026-10-23T20:00:00Z')).state,'DATA HOLD');
+console.log('Live feed states passed: opening bar grace, 225-second confirmed-close freshness, and closed-session reference.');

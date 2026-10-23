@@ -1,231 +1,103 @@
-# Saty+ · SPY trading desk
+# Saty+ Trading Desk · 0.3
 
 **Home:** https://saty-plus-trading-desk.zestyfawn9.chatgpt.site/
 
-The existing Saty+ desk is the home for Carter's signal-only research dashboard.
-Its layout, session windows, ticker cards, level map, private paper journal and
-playbook are retained. The frozen SATY engine supplies a separate 3m view,
-setup journal, honest evidence, feed-health controls and learning registry.
-There is no broker integration, order endpoint or options-return forecast.
+Saty+ is Carter's signal-only decision and research desk for **SPY, SPX, AAPL and GOOGL**. The existing layout, session strip, ticker cards, level map, paper journal and playbook are retained. Every ticker now uses the same confirmed-bar SATY implementation, with its own ATR levels, ribbon, phase, setups, feed health and development evidence. There is no broker connection, order endpoint or options-return forecast.
 
-`site/` is the shared frontend for the hosted home and optional GitHub Pages
-mirror. It uses plain HTML, CSS, JavaScript and a canvas chart. The private home
-adds a tiny dependency-free Worker for the existing R2 paper journal API. No
-React, framework build, external font or chart package is required.
+The shared frontend is plain HTML, CSS, JavaScript and a canvas chart. The hosted home adds a dependency-free Worker. No frontend framework, external font, chart package or npm dependency is required. Validation enforces a **500 KB static asset budget**, including the four-ticker seed snapshots and evidence bundle.
 
-![Merged Saty+ desk with an explicitly dated feed](docs/saty-plus-preview.jpg)
+![Saty+ four-ticker desk verification capture](docs/saty-plus-live-preview.jpg)
 
-The screenshot is a development verification capture, not a live market view.
+This is a QA capture of the implemented interface, not a continuously updating market image.
 
-## Two strategies, two records
+## Live home and scheduled mirror
 
-| View | What it contains | Meaning of the evidence |
+| Surface | Data path | Refresh and interpretation |
 | --- | --- | --- |
-| SATY engine | Confirmed 3m RTH bars, Saty ATR levels, 8/13/21/34/48 ribbon, Phase Oscillator, squeeze, reference conditions and replay setups | Target-before-original-stop descriptive development counts; exact event, hits/n, sessions, Wilson interval and evidence state |
-| Original paper scanner | The desk's unchanged 3m / 10m research rules, original session windows, prior/premarket/opening-range map and paper journal | CALL/PUT/WAIT are hand-set evidence weights; journal outcomes are underlying positive-R studies under this scanner's own slippage and time-exit model |
-| Manual context | UW gamma, flow and dark-pool slots with observation time, instrument, method and expiry coverage | Context only; missing is not zero, stale is excluded from map, SPX is never projected directly onto SPY |
-| Learning loop | Sourced candidates, one frozen challenger, explicit review gates and browser-local lesson notes | Appending a lesson cannot change or promote a production rule |
+| Hosted Saty+ home | Browser `GET /api/market` → Worker → TradingView public chart WebSocket; no login | Page polls every 15 seconds while visible. The Worker fetches new history when the next confirmed 3m bar is due, approximately its boundary plus 5 seconds. |
+| Optional GitHub Pages mirror | `market.json` and supporting JSON on `dashboard-data` | GitHub Actions refreshes about every 10 minutes. This is a dated reference, not the home's live path. |
+| Private paper journal | Existing same-origin API and original R2 record | Preserved separately from public market data. The webpage does not claim to run an external paper monitor automatically. |
+| Manual UW context | `uw.json` | Gamma, flow and dark-pool values remain MANUAL/placeholder until populated, with source time and instrument basis. |
 
-The original desk windows remain 9:30–11:00, 11:00–12:00 and 15:00–16:00 ET,
-with its final-ten-minute entry cutoff. SATY's trigger/Golden Gate/re-entry
-windows remain 9:35–11:30 and 15:00–15:30 ET. They are labeled separately;
-one strategy's clock or outcomes never silently replaces the other's.
+The home monitors the entire regular session, **09:30–16:00 ET**, with the exchange calendar handling holidays and early closes. Strategy entry windows remain independent: monitoring does not stop during midday or after the last eligible setup window.
 
-## Shared data and the optional Pages mirror
+The displayed price is the close of a **confirmed three-minute bar**, not a streaming tick. Every ticker shows its source and last-bar time. The first opening candle is labeled as forming; a closed session is reference context. During the session, a confirmed close older than **225 seconds** or an actual retrieval/data-quality failure produces DATA HOLD. A refresh cannot relabel old data as live.
 
-The home and public mirror read the same compact bundle:
+| Ticker | Primary TradingView symbol | Observed public source |
+| --- | --- | --- |
+| SPY | `AMEX:SPY` | BATS |
+| SPX | `TVC:SPX`; fallback `SP:SPX` | TVC primary; the observed SP fallback reports a 600-second delay |
+| AAPL | `NASDAQ:AAPL` | BATS |
+| GOOGL | `NASDAQ:GOOGL` | BATS |
 
-`https://raw.githubusercontent.com/carterwaynereed/SATY/dashboard-data/`
+The page reports actual metadata and failed symbol attempts. A delayed fallback is identified and held if its bars are too old. SPX has no supplied volume, so VWAP stays unavailable. The free feed did not support a native 10m request: the 10m ribbon uses **exactly ten completed, aligned 1m bars** per candle. Missing constituents are not silently filled.
 
-The **Update shared data and Pages mirror** workflow publishes `latest.json`,
-`evidence.json`, `uw.json` and `learning.json` together. Its ten-minute schedule
-runs the frozen Python engine. Main owns code, manual UW input and the learning
-registry; `dashboard-data` owns generated snapshots and the public replay audit.
-The private paper journal remains in its existing private Site storage, outside
-this bundle. External fetches never carry the private Site's credentials.
+## Directional evidence weights
 
-The home does not require GitHub Pages to be enabled. To activate the optional
-mirror at https://carterwaynereed.github.io/SATY/:
+CALL / PUT / WAIT are **evidence allocations, not probabilities**. Their rows are 3m ribbon (25), 10m ribbon (25), 13/48 conviction (10), VWAP (15), daily ATR trigger (10), and a confirmed trigger on the latest bar (15).
 
-1. In **Settings → Pages → Build and deployment → Source**, select **GitHub Actions**.
-2. Ensure Actions and the official `actions/*` actions are allowed. The workflow
-   requests `contents: write`, `pages: write` and `id-token: write`; repository
-   policies must permit it to update the generated `dashboard-data` branch.
-3. Run **Actions → Update shared data and Pages mirror → Run workflow → main**.
-   Open the URL reported by the successful deployment step.
-
-A failed Pages configuration is reported as a warning without stopping a
-successful shared data update. Feed or journal-persistence failures still fail
-the run. No account secrets are required in this public repository. Never add
-UW cookies, Discord tokens, TradingView credentials or private journal data.
-
-Frontend code is synchronized into the existing Site with the procedure in
-[`hosting/README.md`](hosting/README.md). Both hosts continuously share data;
-future **code** changes require publishing the same reviewed source to both.
-A GitHub push does not by itself redeploy the private Site.
-
-## Schedule and freshness
-
-The cron is ten minutes, offset from the top of the hour:
+Each row contributes its stated weight to bullish, bearish or neutral evidence. Let bullish total be B, bearish total S and disagreement D = min(B, S). Then:
 
 ```text
-4,14,24,34,44,54 13-21 * * 1-5
+CALL = B − D
+PUT  = S − D
+WAIT = 100 − CALL − PUT
 ```
 
-This UTC envelope covers both New York offsets. The XNYS calendar gates actual
-refreshes to the regular session plus a 15-minute finalization window, including
-holidays and early closes. A manual run or code/data push can refresh the latest
-completed session outside trading hours.
+Disagreement and neutral inputs therefore go to WAIT. Fresh in-session bars use those actual rows even when no entry is eligible. Stale, unavailable or out-of-session data forces 0 / 0 / 100 while preserving the row explanation. The interface exposes the calculation and tests cover all-bullish, all-bearish, mixed and stale examples.
 
-GitHub schedules can start late or be dropped under load. This is **periodic
-decision context, not a streaming quote or a timely next-open entry service**.
-The browser polls the four public JSON files every minute while visible and rechecks
-age locally every 15 seconds. A 15-minute-old in-session price becomes stale;
-refreshing the browser cannot make old data new. Public-repository schedules can
-also be disabled by GitHub after prolonged inactivity; check Actions if updates
-stop. See the [schedule documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
+## Same-feed, honest development evidence
 
-## Data and strategy integrity
+The supplied Python engine and `stats/signal_stats_v2.json` remain frozen. The new `site/data/tv-evidence.json` contains **separate 34-session replays for all four tickers**, September 4–October 22, 2026, using each ticker's actual public TradingView source. Raw captures, stable episode IDs and audit ledgers are stored under `stats/tv/`, outside website assets.
 
-- TradingView's supplied unauthenticated chart adapter is the primary source.
-  It is unofficial and may be delayed or unavailable. The runner records the
-  returned source metadata instead of assuming a real-time or consolidated feed.
-- yfinance is a fallback. Both daily and intraday data switch together. Only
-  complete sets of three one-minute bars produce a 3m candle. A fallback source
-  is displayed and probability headlines are withheld for unverified parity.
-- The runner requires 400 continuous prior RTH 3m bars, the session's opening
-  bar, valid OHLCV, and sufficient completed daily history. Forming candles are
-  excluded. ATR uses completed daily sessions before the decision session.
-- The supplied engine stays frozen. Its RTH 13/48 conviction differs from Saty's
-  extended-session implementation, as described in the supplied audit. Window
-  definitions, context detectors, gap cohorts and the next-open model remain
-  explicit. No discretionary Saty equivalence is asserted.
-- Stops and targets describe modeled replay geometry. Target-before-original-
-  stop outcomes and managed exits are separate. Costs, fills and option returns
-  are not modeled.
+The named event is **T_i touched before the original frozen stop by 16:00 ET**, following a confirmed 3m decision and modeled next-open entry. Cells match ticker, feed fingerprint, setup, cohort, target index and reward/risk bucket. They show hits, **n**, episode/session counts, a **Wilson 95% descriptive interval**, ambiguity and evidence state. The rebuild uses uniform 3m stop-first handling with target-first sensitivity; no fills, fees or option returns are modeled.
 
-The original Python files are under `engine/`. SHA-256 hashes in
-[`docs/engine-manifest.json`](docs/engine-manifest.json) protect that baseline and
-the supplied statistics. The original audit scripts need historical raw files
-that were not included in the attachment; v1 does not claim to have rerun that
-entire historical audit.
+A headline is withheld for **n < 20**, unmatched source identity, a mismatched horizon, a training cutoff reaching the decision session, or evidence that did not yet exist at that decision. Counts remain inspectable as **DEVELOPMENT** evidence. Overlapping sessions are correlated; Wilson does not correct for that dependence. Adequate n is not proof of prediction quality.
 
-## Honest probabilities
+The dependency-free JS port is checked against unchanged Python over **140 ticker-session cases and 994 entry candidates**, including ATR, all five ribbon EMAs, phase, squeeze, setups, geometry, cancellations and original-stop outcomes. The engine still uses RTH 13/48 conviction; no claim of exact discretionary Saty equivalence is made. See [the evidence audit](docs/TV_EVIDENCE.md).
 
-[`stats/signal_stats_v2.json`](stats/signal_stats_v2.json) contains the supplied
-34-session development sample, September 4–October 22, 2026. It is unchanged.
+## Learning, manual context and paper records
 
-The evidence adapter selects **setup + cohort + target index + R bucket**. It
-never counts T1/T2/T3 rows as three independent signals. It shows raw hits/total,
-sessions represented in that denominator, inferred episode count, a Wilson 95%
-interval, ambiguity and timeout information. The interval is descriptive and
-does not correct for session clustering. Independence remains unverified because
-the supplied observations lack episode IDs; they also pool direction.
+`learning/` retains sourced rule candidates, one challenger versus a frozen baseline, explicit promotion gates and rollback requirements. A Discord/YouTube lesson becomes a testable hypothesis; appending it never changes production rules. The 30-new-session/100-episode review floor is a review threshold, not proof of an edge. Read [the learning process](learning/README.md).
 
-The headline historical rate is withheld for fewer than 20 exact-cell events,
-unknown source comparability, early-close horizon mismatch, or evidence that was
-not available at the modeled decision. The evidence file was built on October
-23 at 13:41:53 ET, so it cannot become an earlier October 23 prediction retroactively.
-Raw historical counts remain inspectable under the **DEVELOPMENT** label.
+Edit `site/data/uw.json` only with values actually observed. Set its timestamp, instrument, method, units and expiry coverage; keep unknown values null. Expired or mismatched context is excluded from the level map. SPX levels stay in index points and are not projected onto SPY. UW context does not change the frozen outcome frequency or entry rules.
 
-The legacy smoothed model pooled target rows. Its diagnostics are retained as
-exploratory provenance, but no unvalidated smoothed forecast is published on
-setup cards. Adequate counts do not establish predictive skill or profitability.
+The original paper scanner and its external updater are retained. Its private R2 journal key, API and browser note keys remain separate from public replay observations. Public Pages cannot read that private journal. The old scanner has its own rules and outcome definition; those records are not counted as SATY target-before-stop evidence.
 
-To deterministically regenerate the compact evidence display without changing
-the sample or strategy:
+## Deployments and synchronization
 
-```bash
-python scripts/summarize_evidence.py
-```
+A push to SATY `main` runs the shared-data/optional Pages workflow. The generated branch publishes **`market.json`, `tv-evidence.json`, `latest.json`, `evidence.json`, `uw.json` and `learning.json`**, plus the existing replay observation audit. Main owns source, evidence captures, manual inputs and learning rules. The generated branch owns scheduled references.
 
-## Fill the Unusual Whales slot
+**A GitHub push does not automatically publish new code to the private Saty+ home.** The exposed Sites capabilities provide short-lived source credentials and a short-lived publish-on-push option, not a permanent GitHub webhook. No Site credential is stored in this public repository or GitHub Actions.
 
-Edit [`site/data/uw.json`](site/data/uw.json) on `main`, preserving its schema:
+For a complete manual sync, use this **one user step** in the Sites-enabled chat:
 
-1. Change `status` to `manual` after entering a real observation.
-2. Set `asof` to the source observation timestamp with an offset; set `symbol`
-   to `SPY` or `SPX`. Record `method`, `expiry_scope`, and gamma `units`.
-3. Fill only values actually shown. Keep unavailable values as `null`.
-4. Use the declared flow `window` and `classification`; do not treat call premium
-   alone as proof of bullish customer buying.
-5. Commit the JSON. The main-branch workflow republishes it alongside the market
-   snapshot. Its freshness limit defaults to 15 minutes; expired manual context
-   is labeled stale and no longer joins the level map.
+> Sync current carterwaynereed/SATY main to the existing Saty+ home and publish it, preserving its audience and journal.
 
-SPX remains in index points. Only current, verified **SPY-basis** manual walls
-join the SPY ladder. Gamma/flow/dark-pool context never changes the baseline
-probability or entry rule in v1. No automated UW account access is performed.
+The source helper, checks, packaging and native publication are then performed as one requested release. The CLI command `node hosting/sync-source.mjs /absolute/existing-site-checkout` copies source only; it **does not publish**. The operator procedure is in [hosting/README.md](hosting/README.md).
 
-## Private paper journal, public observations and daily learning
+To enable the optional https://carterwaynereed.github.io/SATY/ mirror, select **Settings → Pages → Source → GitHub Actions**, permit the workflow's contents/pages/id-token permissions, then run **Update shared data and Pages mirror** on `main`. Pages configuration failures are reported separately from shared-data publication. The home does not depend on Pages availability.
 
-The original local paper monitor continues to use `scan.mjs`, `ingest.mjs` and
-`sync-site.mjs`. Its existing R2 key and update API are unchanged. Its original
-90-second freshness gate is separate from SATY’s scheduled 3m replay. The
-public mirror can show a browser-imported paper journal, but cannot access the
-private home’s journal. Browser lesson notes keep the same local-storage keys.
+The scheduled reference cron is `4,14,24,34,44,54 13-21 * * 1-5`, gated by XNYS sessions and close + 15 minutes. GitHub can delay scheduled jobs; this cannot provide the home's one-bar freshness target. See [GitHub's schedule documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
 
-The workflow keeps public generated data on the **`dashboard-data`** branch:
+## Local verification
 
-```text
-latest.json
-evidence.json
-uw.json
-learning.json
-state/index.json
-state/YYYY-MM-DD/observations.jsonl
-state/YYYY-MM-DD/outcomes.jsonl
-state/YYYY-MM-DD/revisions.jsonl
-state/YYYY-MM-DD/refreshes.jsonl
-```
+Python 3.12 and Node 22+ are sufficient; the Action uses Node 24. Install Python requirements, then:
 
-First observations preserve geometry, evidence hash, source, timestamp and
-evidence available at observation. Later outcomes and provider revisions are
-separate records. An engine decision discovered ten minutes afterward is marked
-ineligible for timely-entry forward evaluation. The journal is initially a
-source/latency/replay audit, not certified live strategy performance.
-
-Use [`learning/README.md`](learning/README.md) for the daily process and promotion
-gates. Six open audit questions are registered as **RESEARCH**. Add lessons as
-publishable paraphrases with source locators, then preregister one testable
-change. Appending a lesson never edits production rules. Any accepted challenger
-requires a versioned, reviewed PR with an untouched evaluation and rollback
-record. The 30-new-session/100-episode review floor is not proof of an edge.
-
-## Local use and verification
-
-Python 3.12 and Node 22+ are sufficient. The frontend has no dependencies. Node
-runs the optional local paper scanner, tests and the dependency-free Site build.
-Private scanner files under `/data/` are ignored; never force-add them.
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
+```sh
 python -m pip install -r requirements.txt
-python scripts/refresh.py --init
-python scripts/refresh.py --output site/data/latest.json --state-dir state
-node server.mjs
-```
-
-Open `http://127.0.0.1:8765/`. The merged browser reads the shared remote SATY
-bundle; `scripts/refresh.py` above is a local adapter smoke run, not an override
-of the canonical shared feed. Do not open `index.html` as a `file://` URL because
-the browser must fetch its JSON through HTTP.
-
-```bash
+python scripts/rebuild_tv_evidence.py --frozen
 python -m unittest discover -s tests -p 'test_*.py' -v
 node --test tests/*.test.mjs
 python scripts/validate_site.py
 ```
 
-Tests run offline with deterministic fixtures. The CI workflow does not depend
-on a market-data service being up. The deployment workflow performs the real
-refresh and publishes HOLD on a feed failure when persistence succeeds. If persistence
-fails, the public bundle keeps its earlier timestamp and the browser ages it
-into HOLD; the workflow reports the failure. The static
-validator checks strict JSON, frozen source hashes and a 500 KB artifact budget.
+To fetch a fresh four-ticker scheduled reference:
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
-[`docs/DATA_CONTRACT.md`](docs/DATA_CONTRACT.md), and
-[`docs/supplied-audit.md`](docs/supplied-audit.md) for implementation details and
-the supplied audit.
+```sh
+python scripts/refresh_tv_market.py --output site/data/market.json
+```
+
+To capture a new, separately dated development dataset, run `python scripts/rebuild_tv_evidence.py`, review its provenance and parity tests, then commit it. No automatic challenger promotion occurs. `node server.mjs` remains the optional local paper-scanner server. Private `/data/`, credentials and environment files are ignored and must never be force-added.
+
+See [architecture](docs/ARCHITECTURE.md), [hosting](hosting/README.md), [evidence provenance](docs/TV_EVIDENCE.md), and the [supplied audit](docs/supplied-audit.md).

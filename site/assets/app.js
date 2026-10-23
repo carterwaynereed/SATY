@@ -2,6 +2,28 @@
 export const finite = value => typeof value === 'number' && Number.isFinite(value);
 export const number = (value, digits = 2) => finite(value) ? value.toLocaleString('en-US', {minimumFractionDigits: digits, maximumFractionDigits: digits}) : '—';
 export const percent = value => finite(value) ? `${Math.round(value * 100)}%` : '—';
+
+/* Conditional market reads retain the last parsed bundle only after a valid 200 response. */
+export function createMarketReader(fetcher = fetch) {
+  let previous = null, etag = null, previousURL = null;
+  return async function readMarket(url, {sameOrigin = false, timeout = 30000} = {}) {
+    if (url !== previousURL) { previous = null; etag = null; previousURL = url; }
+    const controller = new AbortController(), timer = setTimeout(() => controller.abort(), timeout);
+    try {
+      const headers = sameOrigin && etag ? {'If-None-Match':etag} : {};
+      const response = await fetcher(url,{headers,credentials:sameOrigin?'same-origin':'omit',cache:'no-store',signal:controller.signal});
+      if (response.status === 304) {
+        if (!sameOrigin || !previous) throw new Error('Market returned 304 without a prior same-origin snapshot');
+        return previous;
+      }
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const value = await response.json();
+      if (!value || value.schema_version !== 2 || !value.symbols || typeof value.symbols !== 'object' || Array.isArray(value.symbols)) throw new Error('Unsupported multi-ticker snapshot');
+      previous = value; etag = sameOrigin ? response.headers.get('ETag') : null;
+      return value;
+    } finally { clearTimeout(timer); }
+  };
+}
 const dateValue = value => typeof value === 'string' ? Date.parse(value) : NaN;
 const etDate = value => new Intl.DateTimeFormat('en-CA', {timeZone: 'America/New_York', year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(value));
 const time = value => Number.isFinite(dateValue(value)) ? new Intl.DateTimeFormat('en-US', {timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(value)) : '—';
@@ -15,12 +37,19 @@ export function snapshotHealth(snapshot, now = Date.now(), fetchFailed = false) 
   if (!snapshot || !finite(snapshot.market?.last)) return {state:'DATA HOLD',tone:'hold',reason:snapshot?.health?.reason || 'No market snapshot has been published.'};
   const h = snapshot.health || {}, asof = dateValue(h.price_asof), age = (now - asof) / 1000;
   if (!Number.isFinite(asof) || age < -90) return {state:'DATA HOLD',tone:'hold',reason:'Snapshot time is missing or ahead of the browser clock.'};
-  if (['UNAVAILABLE','STALE'].includes(h.state)) return {state:h.state === 'STALE' ? 'STALE SNAPSHOT' : 'DATA HOLD',tone:'hold',reason:h.reason || 'The source did not pass freshness checks.',age};
+  if (h.state === 'UNAVAILABLE') return {state:'DATA HOLD',tone:'hold',reason:h.reason || 'The source did not pass freshness checks.',age};
   const session = snapshot.session || {}, open = dateValue(session.open), close = dateValue(session.close);
+  if (h.state === 'OPENING') {
+    const hm = new Intl.DateTimeFormat('en-GB',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(now));
+    if (session.calendar_date === etDate(now) && hm >= '09:30' && hm < '09:33') return {state:'FIRST BAR FORMING',tone:'closed',reason:'Waiting for the confirmed 09:30–09:33 ET bar. Prior-session indicators are reference only.',age};
+    if (hm >= '09:33' && hm < '16:00' && session.calendar_date === etDate(now)) return {state:'DATA HOLD',tone:'hold',reason:'The first confirmed regular-session bar has not arrived.',age};
+  }
   if (session.date && session.date !== etDate(now) && age > 43200) return {state:'DATED SNAPSHOT',tone:'closed',reason:`Showing the ${session.date} session. No current-session decision is available.`,age};
   if (Number.isFinite(open) && Number.isFinite(close) && now >= open && now < close) {
+    if (h.state === 'STALE') return {state:'STALE SNAPSHOT',tone:'hold',reason:h.reason || 'The expected confirmed bar has not arrived.',age};
     if (age > (finite(h.ttl_seconds) ? h.ttl_seconds : 900)) return {state:'STALE SNAPSHOT',tone:'hold',reason:'The confirmed close is older than the freshness limit. Await the next successful run.',age};
-    return {state:'CURRENT SNAPSHOT',tone:'current',reason:`Scheduled ${session.refresh_minutes || 10}-minute updates · confirmed 3m bars · not a live quote.`,age};
+    const live = session.refresh_seconds === 15 || h.live_feed === true;
+    return {state:live?'CURRENT BAR':'CURRENT SNAPSHOT',tone:'current',reason:live?'TradingView public chart feed · confirmed 3m bars · page checks every 15 seconds.':`Scheduled ${session.refresh_minutes || 10}-minute updates · confirmed 3m bars · not a live quote.`,age};
   }
   if (session.status === 'OPEN' && !Number.isFinite(close)) return {state:'DATA HOLD',tone:'hold',reason:'Session boundaries are unavailable.',age};
   return {state:session.status === 'PREMARKET' ? 'PREMARKET' : 'SESSION CLOSED',tone:'closed',reason:h.reason || 'Reference snapshot. New entries are not being evaluated.',age};
@@ -31,7 +60,7 @@ export function uwHealth(uw, now = Date.now()) {
   const ts = dateValue(uw.asof), age = (now - ts) / 60000, ttl = finite(uw.ttl_minutes) && uw.ttl_minutes > 0 ? uw.ttl_minutes : 15;
   if (!Number.isFinite(ts) || age < -1) return {valid:false,label:'MANUAL / UNVERIFIED',reason:'The manual snapshot needs a valid, nonfuture timestamp.'};
   if (age > ttl) return {valid:false,label:'MANUAL / STALE',reason:`Manual snapshot expired ${Math.floor(age - ttl)} minutes ago. Values below are historical context only.`};
-  if (!['SPY','SPX'].includes(uw.symbol)) return {valid:false,label:'MANUAL / UNVERIFIED',reason:'Set an explicit SPY or SPX instrument basis.'};
+  if (!['SPY','SPX','AAPL','GOOGL'].includes(uw.symbol)) return {valid:false,label:'MANUAL / UNVERIFIED',reason:'Set an explicit SPY, SPX, AAPL or GOOGL instrument basis.'};
   if (!uw.method || !uw.expiry_scope) return {valid:false,label:'MANUAL / UNVERIFIED',reason:'Methodology and expiry scope are required before gamma levels join the map.'};
   return {valid:true,label:'MANUAL / CURRENT',reason:`${uw.source || 'Unusual Whales'} · ${uw.symbol} basis · as of ${time(uw.asof)} ET · ${uw.expiry_scope}`};
 }
@@ -60,7 +89,10 @@ export function safeHref(value) {
   try { const url = new URL(value); return ['https:', 'http:'].includes(url.protocol) ? url.href : null; } catch { return null; }
 }
 export function manualSPYLevels(uw, now = Date.now()) {
-  if (!uwHealth(uw, now).valid || uw.symbol !== 'SPY') return [];
+  return manualTickerLevels(uw,'SPY',now);
+}
+export function manualTickerLevels(uw, symbol, now = Date.now()) {
+  if (!uwHealth(uw, now).valid || uw.symbol !== symbol) return [];
   return [['Call wall',uw.gamma?.call_wall],['Put wall',uw.gamma?.put_wall],['Zero gamma',uw.gamma?.zero_gamma]]
     .filter(([,price])=>finite(price)).map(([label,price])=>({label:`${label} · MANUAL`,price,manual:true}));
 }
