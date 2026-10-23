@@ -41,7 +41,7 @@ class DailyEODReviewTests(unittest.TestCase):
             report=json.loads((data/'eod-review.json').read_text())['sessions'][0]
             self.assertEqual(report['signal_count'],1)
             self.assertEqual(report['sample_n'],1)
-            self.assertIsNotNone(report['favorable_first_interval_95_wilson'])
+            self.assertIsNotNone(report['favorable_excursion_dominant_interval_95_wilson'])
             self.assertIn('wait_assessment',report)
     def test_stale_feed_alarm_only_when_snapshot_session_was_open(self):
         with tempfile.TemporaryDirectory() as td:
