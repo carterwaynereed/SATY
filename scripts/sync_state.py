@@ -46,7 +46,11 @@ def commit():
     # One Git commit publishes the complete shared public bundle. Browser clients
     # still compare evidence IDs because CDN caches can serve files of different ages.
     for name in PUBLIC_FILES:
-        shutil.copyfile(ROOT / 'site/data' / name, WORK / name)
+        source = ROOT / 'site/data' / name
+        if source.exists():
+            shutil.copyfile(source, WORK / name)
+        elif name in ('latest.json', 'evidence.json', 'uw.json', 'learning.json', 'market.json', 'tv-evidence.json'):
+            raise RuntimeError(f'Required generated dashboard file is missing: {name}')
     (WORK / 'README.md').write_text(
         '# Generated dashboard observations\n\n'
         'Updated by the main-branch dashboard workflow. Source code and manual '
