@@ -52,19 +52,20 @@ def main():
         if today and move_atr is not None and move_atr>=1.0 and wait is not None and wait>=90 and len(signals)==0:
             new_alarms.append({'type':'ENGINE_ALL_DAY_WAIT','symbol':symbol,'at':stamp,'detail':f'ENGINE CHECK: all-day WAIT while {symbol} moved {move_atr:.2f} ATR; wait_weight={wait:.0f}/100, bars_n={len(today)}. Review missed moves and gates.'})
         instrument_summary.append({'symbol':symbol,'n_bars':len(today),'n_signals':len(signals),'wait_weight':wait,'move_atr':round(move_atr,4) if move_atr is not None else None,'feed_age_seconds':round(age) if age is not None else None})
-    if len(sessions)>=2:
-        recent=sessions[-2:]
+    active_reviews=[x for x in sessions if any(i.get('n_bars',0)>0 for i in x.get('instruments',[]))]
+    if len(active_reviews)>=2:
+        recent=active_reviews[-2:]
         for symbol in symbols:
             vals=[x.get('weights',{}).get(symbol) for x in recent]
             if all(v is not None for v in vals) and vals[0]==vals[1]:
                 new_alarms.append({'type':'WEIGHTS_STUCK','symbol':symbol,'at':stamp,'detail':'Directional evidence weights unchanged across at least two daily reviews; verify feed and calculation path.'})
         for symbol in symbols:
-            recent_rows=[x for x in sessions[-3:] if any(i.get('symbol')==symbol for i in x.get('instruments',[]))]
+            recent_rows=[x for x in active_reviews[-3:] if any(i.get('symbol')==symbol and i.get('n_bars',0)>0 for i in x.get('instruments',[]))]
             if len(recent_rows)>=2 and all(next(i for i in x['instruments'] if i['symbol']==symbol).get('n_signals',0)==0 for x in recent_rows):
                 new_alarms.append({'type':'ZERO_SETUPS_2_SESSIONS','symbol':symbol,'at':stamp,'detail':'No setups in 2+ reviewed sessions; inspect engine health, gates and feed before interpreting as market conditions.'})
         for symbol in symbols:
             directions=[]
-            for x in sessions[-5:]:
+            for x in active_reviews[-5:]:
                 directions += [z.get('side') for z in x.get('signals',[]) if z.get('symbol')==symbol and z.get('side') in ('LONG','SHORT')]
             if len(directions)>=5 and (directions.count('LONG')==0 or directions.count('SHORT')==0):
                 new_alarms.append({'type':'ONE_SIDED_CALLS','symbol':symbol,'at':stamp,'detail':f'Only one direction in last reviewed signals (n={len(directions)}); inspect directional bias and sample coverage.'})
