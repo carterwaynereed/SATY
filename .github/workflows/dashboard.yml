@@ -1,9 +1,9 @@
-name: Update and deploy dashboard
+name: Update shared data and Pages mirror
 
 on:
   push:
     branches: [main]
-    paths-ignore: ['learning/**', 'docs/**', '**.md']
+    paths-ignore: ['docs/**', '**.md']
   workflow_dispatch:
   schedule:
     # Ten minutes, offset from the busy top of the hour. UTC covers both ET offsets.
@@ -39,6 +39,11 @@ jobs:
       - name: Check exchange session
         id: market
         run: python scripts/market_gate.py --github-output "$GITHUB_OUTPUT"
+      - name: Build evidence and learning summaries
+        if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
+        run: |
+          python scripts/summarize_evidence.py
+          python scripts/summarize_learning.py
       - name: Restore durable snapshot and journal
         if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
         run: python scripts/sync_state.py prepare
@@ -59,20 +64,26 @@ jobs:
         if: steps.persist.outcome == 'failure'
         run: python scripts/mark_hold.py 'The observation journal could not be saved. Review the failed workflow before using retained context.'
       - name: Configure Pages
+        id: pages
         if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
+        continue-on-error: true
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+      - name: Explain optional Pages setup
+        if: steps.pages.outcome == 'failure'
+        run: |
+          echo '::warning::Pages is an optional mirror and could not be configured. Enable Settings > Pages > Source > GitHub Actions and review the Configure Pages log. The Saty+ home reads dashboard-data directly; see Persist data for its publication result.'
       - name: Upload only the static site
-        if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
+        if: steps.pages.outcome == 'success'
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:
           path: site
           retention-days: 1
       - name: Deploy GitHub Pages
         id: deployment
-        if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
+        if: steps.pages.outcome == 'success'
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
-      - name: Surface refresh or journal failures after deploying HOLD
+      - name: Surface refresh or journal failures
         if: steps.refresh.outcome == 'failure' || steps.persist.outcome == 'failure'
         run: |
-          echo 'A DATA HOLD snapshot was deployed because the feed refresh or journal persistence failed. Inspect the steps above.'
+          echo 'The feed refresh or journal persistence failed. Failed refreshes publish DATA HOLD when persistence succeeds. If persistence failed, the shared feed retains its previous timestamp and becomes stale. Inspect the steps above.'
           exit 1

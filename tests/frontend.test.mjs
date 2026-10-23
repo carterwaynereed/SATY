@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 const source=await readFile(new URL('../site/assets/app.js',import.meta.url),'utf8');
-const {number,percent,snapshotHealth,uwHealth,probabilityView}=await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+const {number,percent,snapshotHealth,uwHealth,probabilityView,evidenceMatches,paperRateView,safeHref,manualSPYLevels,validPaperSnapshot}=await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 assert.equal(number(null),'—');assert.equal(number(0),'0.00');assert.equal(number(NaN),'—');assert.equal(percent(null),'—');assert.equal(percent(0),'0%');
 const now=Date.parse('2026-10-23T15:00:00Z');
 const snapshot={market:{last:760},health:{state:'CURRENT',price_asof:'2026-10-23T14:57:00Z',ttl_seconds:900},session:{date:'2026-10-23',status:'OPEN',open:'2026-10-23T13:30:00Z',close:'2026-10-23T20:00:00Z',refresh_minutes:10}};
@@ -16,3 +16,25 @@ assert.equal(uwHealth(manual,now).valid,true);assert.equal(uwHealth(manual,now+2
 const p={n:20,hits:10,episodes:20,sessions:12,display_probability:.5,interval:[.3,.7]};
 assert.equal(probabilityView(p).show,true);assert.equal(probabilityView({...p,n:19,episodes:19}).show,false);assert.equal(probabilityView({...p,display_probability:null}).show,false);assert.equal(probabilityView({...p,episodes:null}).show,false);assert.equal(probabilityView({...p,display_probability:1.2}).show,false);assert.match(probabilityView(p).counts,/10\/20/);
 console.log('Frontend invariants passed: missing vs zero, aging, retained data hold, UW timestamps, and probability suppression.');
+
+const closed19=Array.from({length:19},(_,i)=>({status:'closed',r:i<9?1:-1}));
+const closed20=[...closed19,{status:'closed',r:1},{status:'unresolved',r:2}];
+assert.match(paperRateView({n:19,winRate:47.4,interval:[27.3,68.3]},closed19).headline,/withheld.*n=19/);
+const paper20=paperRateView({n:20,winRate:50,interval:[29.9,70.1]},closed20);
+assert.match(paper20.headline,/50%.*n=20/);assert.equal(paper20.wins,10);assert.match(paper20.interval,/n=20/);
+const matching={evidence_id:'sha256:example',strategy:{version:'saty-sig-2.0'}};
+assert.equal(evidenceMatches(matching,{stats_id:'sha256:example',strategy_version:'saty-sig-2.0'}),true);
+assert.equal(evidenceMatches(matching,{stats_id:'sha256:different',strategy_version:'saty-sig-2.0'}),false);
+assert.equal(evidenceMatches(matching,{stats_id:'sha256:example',strategy_version:'different'}),false);
+assert.equal(safeHref('javascript:alert(1)'),null);assert.equal(safeHref('data:text/html,test'),null);assert.equal(safeHref('https://youtube.com/watch?v=abc'),'https://youtube.com/watch?v=abc');
+const gamma={...manual,gamma:{call_wall:762,put_wall:758,zero_gamma:760}};
+assert.equal(manualSPYLevels(gamma,now).length,3);assert.equal(manualSPYLevels({...gamma,symbol:'SPX'},now).length,0);
+assert.equal(manualSPYLevels(gamma,now+20*60000).length,0);assert.equal(manualSPYLevels({...gamma,method:null},now).length,0);
+console.log('Merge invariants passed: thin paper samples, named denominator, source/version separation, manual SPY-only levels, safe note links.');
+
+const savedPaper={feeds:{symbols:{SPY:{bars:[]}}},journal:[{symbol:'SPY',status:'closed',r:1}]};
+assert.equal(validPaperSnapshot(savedPaper),true);
+assert.equal(validPaperSnapshot({...savedPaper,journal:[null]}),false);
+assert.equal(validPaperSnapshot({...savedPaper,journal:[{symbol:'SPY',status:'closed',r:'1'}]}),false);
+assert.equal(validPaperSnapshot({...savedPaper,journal:[{symbol:'SPY',status:'unresolved',r:null}]}),true);
+console.log('Malformed cached/imported paper records are rejected before replacing the journal.');

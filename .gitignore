@@ -14,3 +14,11 @@ state/
 qa/
 *.log
 node_modules/
+
+# Private paper scanner state and hosting artifacts
+/data/
+/dist/
+.sites-runtime/
+.next/
+.wrangler/
+*.tar.gz

@@ -4,7 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
-    paths-ignore: ['learning/**', 'docs/**', '**.md']
+    paths-ignore: ['docs/**', '**.md']
 
 permissions:
   contents: read
@@ -26,6 +26,10 @@ jobs:
           python-version: '3.12'
           cache: pip
       - run: python -m pip install -r requirements.txt
+      - name: Build evidence and learning summaries
+        run: |
+          python scripts/summarize_evidence.py
+          python scripts/summarize_learning.py
       - name: Offline behavior and causality tests
         run: python -m unittest discover -s tests -p 'test_*.py' -v
       - name: Browser logic tests

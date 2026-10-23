@@ -11,6 +11,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 WORK = ROOT / '.dashboard-state'
 BRANCH = 'dashboard-data'
+PUBLIC_FILES = ('latest.json', 'evidence.json', 'uw.json', 'learning.json')
 
 
 def git(*args, cwd=ROOT, check=True, capture=False):
@@ -41,11 +42,18 @@ def prepare():
 def commit():
     if not (WORK / '.git').exists():
         raise RuntimeError('Prepare the isolated state worktree first.')
-    shutil.copyfile(ROOT / 'site/data/latest.json', WORK / 'latest.json')
+    # One Git commit publishes the complete shared public bundle. Browser clients
+    # still compare evidence IDs because CDN caches can serve files of different ages.
+    for name in PUBLIC_FILES:
+        shutil.copyfile(ROOT / 'site/data' / name, WORK / name)
     (WORK / 'README.md').write_text(
         '# Generated dashboard observations\n\n'
         'Updated by the main-branch dashboard workflow. Source code and manual '
         'Unusual Whales inputs live on main. Do not store credentials or private lessons here.\n\n'
+        '`latest.json`, `evidence.json`, `uw.json` and `learning.json` are the shared '
+        'public JSON bundle consumed by the Saty+ home and the optional Pages mirror. '
+        'They are committed together; consumers must still validate timestamps and '
+        'match the snapshot evidence ID to the evidence statistics ID.\n\n'
         '`latest.json` is a periodic snapshot. `state/` preserves first-observed '
         'events and later outcomes for research. Modeled entries are not executed '
         'trades or certified real-time forward signals.\n', encoding='utf-8')

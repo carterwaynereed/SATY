@@ -1,57 +1,68 @@
-# SATY · SPY decision desk
+# Saty+ · SPY trading desk
 
-A small, static decision dashboard around Carter's supplied **`saty-sig-2.0`**
-engine. Signal and research support only: no broker integration or order path.
+**Home:** https://saty-plus-trading-desk.zestyfawn9.chatgpt.site/
 
-**Planned GitHub Pages address:** https://carterwaynereed.github.io/SATY/
+The existing Saty+ desk is the home for Carter's signal-only research dashboard.
+Its layout, session windows, ticker cards, level map, private paper journal and
+playbook are retained. The frozen SATY engine supplies a separate 3m view,
+setup journal, honest evidence, feed-health controls and learning registry.
+There is no broker integration, order endpoint or options-return forecast.
 
-The page uses plain HTML, CSS and JavaScript. A GitHub Action fetches SPY bars,
-replays the frozen engine, writes compact JSON, and deploys `site/`. Unusual Whales
-is an explicit manual context slot. No TradingView, Yahoo, or UW account secret
-is needed or stored.
+`site/` is the shared frontend for the hosted home and optional GitHub Pages
+mirror. It uses plain HTML, CSS, JavaScript and a canvas chart. The private home
+adds a tiny dependency-free Worker for the existing R2 paper journal API. No
+React, framework build, external font or chart package is required.
 
-![Local v1 preview with a real, timestamped SPY snapshot](docs/dashboard-preview.jpg)
+![Merged Saty+ desk with an explicitly dated feed](docs/saty-plus-preview.jpg)
 
-Preview captured during local validation on October 23, 2026. It is not a claim
-that the production Pages deployment is already enabled.
+The screenshot is a development verification capture, not a live market view.
 
-## First deployment
+## Two strategies, two records
 
-1. Merge the dashboard PR into `main` after **Validate dashboard** passes.
-2. In **Settings → Pages → Build and deployment → Source**, select **GitHub
-   Actions**. This is required before the Pages deployment succeeds.
-3. In **Settings → Actions → General**, ensure Actions are enabled and GitHub's
-   official `actions/*` actions are allowed. The workflow explicitly requests
-   `contents: write`, `pages: write`, and `id-token: write`; the first scope saves
-   generated state on `dashboard-data`. If repository policies restrict pushes,
-   permit this workflow to update that generated branch. It does not push `main`.
-4. Open **Actions → Update and deploy dashboard → Run workflow → main**. A push
-   to `main` also starts it. If an initial run occurred before Pages was enabled,
-   rerun it after step 2.
-5. Wait for the **Deploy GitHub Pages** step and open its reported URL. The
-   intended address above is not a claim that Pages is already provisioned.
+| View | What it contains | Meaning of the evidence |
+| --- | --- | --- |
+| SATY engine | Confirmed 3m RTH bars, Saty ATR levels, 8/13/21/34/48 ribbon, Phase Oscillator, squeeze, reference conditions and replay setups | Target-before-original-stop descriptive development counts; exact event, hits/n, sessions, Wilson interval and evidence state |
+| Original paper scanner | The desk's unchanged 3m / 10m research rules, original session windows, prior/premarket/opening-range map and paper journal | CALL/PUT/WAIT are hand-set evidence weights; journal outcomes are underlying positive-R studies under this scanner's own slippage and time-exit model |
+| Manual context | UW gamma, flow and dark-pool slots with observation time, instrument, method and expiry coverage | Context only; missing is not zero, stale is excluded from map, SPX is never projected directly onto SPY |
+| Learning loop | Sourced candidates, one frozen challenger, explicit review gates and browser-local lesson notes | Appending a lesson cannot change or promote a production rule |
 
-There are no repository secrets to add. The built-in, short-lived `GITHUB_TOKEN`
-is supplied by Actions. The workflow is pinned to official action commit SHAs.
-Do not put UW cookies, Discord tokens, TradingView credentials, or private source
-material into this public repository.
+The original desk windows remain 9:30–11:00, 11:00–12:00 and 15:00–16:00 ET,
+with its final-ten-minute entry cutoff. SATY's trigger/Golden Gate/re-entry
+windows remain 9:35–11:30 and 15:00–15:30 ET. They are labeled separately;
+one strategy's clock or outcomes never silently replaces the other's.
 
-## What v1 shows
+## Shared data and the optional Pages mirror
 
-| Section | Contents |
-| --- | --- |
-| Data health | Confirmed-price timestamp, current/closed/stale/hold state, provider, schedule, source limitations |
-| Market strip | SPY last confirmed 3m close, previous daily close, Wilder ATR14, change in dollars/ATR, RTH VWAP |
-| Session map | Confirmed candles, EMA ribbon and ATR level toggles; current manually supplied SPY walls can join the map |
-| Decision context | Tracked historical episodes, reference levels, direction/phase conflicts, explicit next-condition caveats |
-| Indicators | 8/13/21/34/48 EMA stack, 13/48 conviction, Phase Oscillator and slope, squeeze |
-| Signal journal | Decision time versus first observation, cohort, modeled next-open entry, original stop, target R, barrier outcomes and separate managed exits |
-| Evidence | Named target event, exact denominator, sessions, inferred episodes, raw rate, 95% descriptive interval, source/cutoff gates |
-| UW context | Manual gamma regime/GEX, zero gamma, call/put walls, premium, dark-pool references, max pain, scope and timestamp |
-| Controlled learning | Research candidates, challenger registry, session templates and review gates |
+The home and public mirror read the same compact bundle:
 
-No scores are presented as a probability of making money. The page will start
-with **DATA HOLD** until a successful refresh publishes usable bars.
+`https://raw.githubusercontent.com/carterwaynereed/SATY/dashboard-data/`
+
+The **Update shared data and Pages mirror** workflow publishes `latest.json`,
+`evidence.json`, `uw.json` and `learning.json` together. Its ten-minute schedule
+runs the frozen Python engine. Main owns code, manual UW input and the learning
+registry; `dashboard-data` owns generated snapshots and the public replay audit.
+The private paper journal remains in its existing private Site storage, outside
+this bundle. External fetches never carry the private Site's credentials.
+
+The home does not require GitHub Pages to be enabled. To activate the optional
+mirror at https://carterwaynereed.github.io/SATY/:
+
+1. In **Settings → Pages → Build and deployment → Source**, select **GitHub Actions**.
+2. Ensure Actions and the official `actions/*` actions are allowed. The workflow
+   requests `contents: write`, `pages: write` and `id-token: write`; repository
+   policies must permit it to update the generated `dashboard-data` branch.
+3. Run **Actions → Update shared data and Pages mirror → Run workflow → main**.
+   Open the URL reported by the successful deployment step.
+
+A failed Pages configuration is reported as a warning without stopping a
+successful shared data update. Feed or journal-persistence failures still fail
+the run. No account secrets are required in this public repository. Never add
+UW cookies, Discord tokens, TradingView credentials or private journal data.
+
+Frontend code is synchronized into the existing Site with the procedure in
+[`hosting/README.md`](hosting/README.md). Both hosts continuously share data;
+future **code** changes require publishing the same reviewed source to both.
+A GitHub push does not by itself redeploy the private Site.
 
 ## Schedule and freshness
 
@@ -68,7 +79,7 @@ completed session outside trading hours.
 
 GitHub schedules can start late or be dropped under load. This is **periodic
 decision context, not a streaming quote or a timely next-open entry service**.
-The browser polls the three JSON files every minute while visible and rechecks
+The browser polls the four public JSON files every minute while visible and rechecks
 age locally every 15 seconds. A 15-minute-old in-session price becomes stale;
 refreshing the browser cannot make old data new. Public-repository schedules can
 also be disabled by GitHub after prolonged inactivity; check Actions if updates
@@ -146,12 +157,21 @@ SPX remains in index points. Only current, verified **SPY-basis** manual walls
 join the SPY ladder. Gamma/flow/dark-pool context never changes the baseline
 probability or entry rule in v1. No automated UW account access is performed.
 
-## Durable observations and daily learning
+## Private paper journal, public observations and daily learning
 
-The workflow keeps generated data on the **`dashboard-data`** branch:
+The original local paper monitor continues to use `scan.mjs`, `ingest.mjs` and
+`sync-site.mjs`. Its existing R2 key and update API are unchanged. Its original
+90-second freshness gate is separate from SATY’s scheduled 3m replay. The
+public mirror can show a browser-imported paper journal, but cannot access the
+private home’s journal. Browser lesson notes keep the same local-storage keys.
+
+The workflow keeps public generated data on the **`dashboard-data`** branch:
 
 ```text
 latest.json
+evidence.json
+uw.json
+learning.json
 state/index.json
 state/YYYY-MM-DD/observations.jsonl
 state/YYYY-MM-DD/outcomes.jsonl
@@ -174,8 +194,9 @@ record. The 30-new-session/100-episode review floor is not proof of an edge.
 
 ## Local use and verification
 
-Python 3.12 and Node 20+ are sufficient. Node is only used for the offline frontend
-logic test; the deployed page has no Node runtime or package installation.
+Python 3.12 and Node 22+ are sufficient. The frontend has no dependencies. Node
+runs the optional local paper scanner, tests and the dependency-free Site build.
+Private scanner files under `/data/` are ignored; never force-add them.
 
 ```bash
 python -m venv .venv
@@ -183,10 +204,12 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt
 python scripts/refresh.py --init
 python scripts/refresh.py --output site/data/latest.json --state-dir state
-python -m http.server 8000 --directory site
+node server.mjs
 ```
 
-Open `http://localhost:8000/`. Do not open `index.html` as a `file://` URL because
+Open `http://127.0.0.1:8765/`. The merged browser reads the shared remote SATY
+bundle; `scripts/refresh.py` above is a local adapter smoke run, not an override
+of the canonical shared feed. Do not open `index.html` as a `file://` URL because
 the browser must fetch its JSON through HTTP.
 
 ```bash
@@ -197,7 +220,9 @@ python scripts/validate_site.py
 
 Tests run offline with deterministic fixtures. The CI workflow does not depend
 on a market-data service being up. The deployment workflow performs the real
-refresh and publishes HOLD on a feed or persistence failure. The static
+refresh and publishes HOLD on a feed failure when persistence succeeds. If persistence
+fails, the public bundle keeps its earlier timestamp and the browser ages it
+into HOLD; the workflow reports the failure. The static
 validator checks strict JSON, frozen source hashes and a 500 KB artifact budget.
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),

@@ -1,8 +1,13 @@
 # Architecture and operating assumptions
 
-The browser reads three same-origin compact JSON files. It never connects to
-TradingView, Yahoo Finance, Unusual Whales, Discord, a broker, or an order endpoint.
-The site uses plain HTML, CSS and JavaScript, system fonts, and an SVG price chart.
+The shared browser frontend reads four compact JSON files from the public
+`dashboard-data` GitHub branch. It never connects to TradingView, Yahoo Finance,
+Unusual Whales, Discord, a broker, or an order endpoint. The original private
+paper snapshot is read separately from the home Site’s same-origin authenticated
+API. Public data requests omit credentials. The frontend uses plain HTML, CSS,
+JavaScript, system fonts and a canvas chart; the private home has a minimal
+Worker preserving its R2 journal API. See `hosting/README.md` for source release
+and storage boundaries.
 
 ## Update path
 
@@ -16,8 +21,13 @@ The site uses plain HTML, CSS and JavaScript, system fonts, and an SVG price cha
 4. First observations and subsequent outcomes are written to durable public state.
    The `dashboard-data` branch holds generated state, keeping machine updates out
    of `main`. The workflow pushes without force and serializes deployments.
-5. The same workflow uploads `site/` and deploys it with GitHub Pages. It does not
-   rely on a `GITHUB_TOKEN` push triggering another workflow.
+5. The same workflow optionally deploys `site/` with GitHub Pages when configured.
+   The home does not depend on Pages availability. It does not rely on a
+   `GITHUB_TOKEN` push triggering another workflow.
+6. Source changes are copied from the canonical GitHub checkout into the existing
+   Site checkout with `hosting/sync-source.mjs`, verified byte-for-byte, then
+   packaged and privately published through the Sites workflow. Data changes
+   require no Site rebuild.
 
 `main` owns the code, frozen statistics, manual context, and learning registry.
 The generated data branch owns the current snapshot and observation journal.

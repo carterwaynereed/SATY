@@ -53,6 +53,26 @@ Use a paired comparison across the same market sessions. For a policy-changing c
 
 No valid result is selected by repeatedly checking daily significance and stopping on a favorable day. If sequential analysis is desired, register its stopping/error-control rule first. A monitor can put the dashboard on DATA HOLD for missing or corrupt data immediately; it cannot silently replace the strategy with the day's best performer.
 
+## Visible dashboard registry
+
+Run `python scripts/summarize_learning.py` after editing the logs. The compact
+`site/data/learning.json` is derived from their latest append-only records and
+published to the shared `dashboard-data` branch on the next main-branch workflow.
+Candidate-only log changes trigger that workflow, including outside market hours.
+Both the hosted Saty+ home and the optional Pages mirror read the same JSON.
+
+Only **one** challenger may have an active `REGISTERED`, `SHADOW` or `REVIEW`
+record at a time. Retire or reject the existing challenger with a new linked
+record before registering another. Updates must point `supersedes_record_id` to
+the previous record for that candidate in the same log. A candidate must already
+exist in the rule registry; active challengers require the complete frozen plan.
+The summary generator rejects missing review metadata and below-floor promoted
+records. It does not decide that a rule has scientific merit or change the engine.
+
+The source fields displayed on the public dashboard contain publishable
+paraphrases and locators only. Keep membership-only Discord text, private charts,
+credentials and the desk's private paper journal out of these logs.
+
 ## Imported evidence
 
 `stats/signal_stats_v2.json` remains the supplied 34-session development snapshot. The original ledger and raw frozen bars were not in the attachment, so the dashboard reconciles counts but does not claim to have independently reproduced the historical backtest. Post-hoc RR bucket choices, the RTH/ETH ribbon difference and pooled-target calibration diagnostics remain visible. Future forward evidence belongs in a separately versioned report; it must not overwrite this sample.
