@@ -88,7 +88,7 @@ def main():
         for line in registry_path.read_text(encoding='utf-8').splitlines():
             try: candidate=json.loads(line)
             except ValueError: continue
-            if candidate.get('status')!='REGISTERED': continue
+            if candidate.get('status')!='REGISTERED' or candidate.get('registered_at','')[:10]>=date: continue
             cid=candidate.get('candidate_id','')
             parts=cid.split('-')
             sym=parts[2] if len(parts)>2 else None
