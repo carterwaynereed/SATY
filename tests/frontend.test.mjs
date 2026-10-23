@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+const source=await readFile(new URL('../site/assets/app.js',import.meta.url),'utf8');
+const {number,percent,snapshotHealth,uwHealth,probabilityView}=await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+assert.equal(number(null),'—');assert.equal(number(0),'0.00');assert.equal(number(NaN),'—');assert.equal(percent(null),'—');assert.equal(percent(0),'0%');
+const now=Date.parse('2026-10-23T15:00:00Z');
+const snapshot={market:{last:760},health:{state:'CURRENT',price_asof:'2026-10-23T14:57:00Z',ttl_seconds:900},session:{date:'2026-10-23',status:'OPEN',open:'2026-10-23T13:30:00Z',close:'2026-10-23T20:00:00Z',refresh_minutes:10}};
+assert.equal(snapshotHealth(snapshot,now).state,'CURRENT SNAPSHOT');
+assert.equal(snapshotHealth(snapshot,now+1000*901).state,'STALE SNAPSHOT');
+assert.equal(snapshotHealth(snapshot,now,true).state,'DATA HOLD');
+assert.equal(snapshotHealth(null,now).state,'DATA HOLD');
+assert.equal(snapshotHealth(snapshot,Date.parse('2026-10-24T15:00:00Z')).state,'DATED SNAPSHOT');
+assert.equal(snapshotHealth({...snapshot,health:{...snapshot.health,price_asof:'2026-10-23T15:10:00Z'}},now).state,'DATA HOLD');
+const manual={status:'manual',asof:'2026-10-23T14:55:00Z',ttl_minutes:15,symbol:'SPY',method:'Provider estimate',expiry_scope:'0DTE'};
+assert.equal(uwHealth(manual,now).valid,true);assert.equal(uwHealth(manual,now+20*60*1000).valid,false);assert.equal(uwHealth({...manual,method:null},now).valid,false);assert.equal(uwHealth({...manual,status:'placeholder'},now).valid,false);
+const p={n:20,hits:10,episodes:20,sessions:12,display_probability:.5,interval:[.3,.7]};
+assert.equal(probabilityView(p).show,true);assert.equal(probabilityView({...p,n:19,episodes:19}).show,false);assert.equal(probabilityView({...p,display_probability:null}).show,false);assert.equal(probabilityView({...p,episodes:null}).show,false);assert.equal(probabilityView({...p,display_probability:1.2}).show,false);assert.match(probabilityView(p).counts,/10\/20/);
+console.log('Frontend invariants passed: missing vs zero, aging, retained data hold, UW timestamps, and probability suppression.');
