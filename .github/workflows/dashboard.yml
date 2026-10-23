@@ -79,7 +79,7 @@ jobs:
       - name: Explain optional Pages setup
         if: steps.pages.outcome == 'failure'
         run: |
-          echo '::warning::Pages is an optional mirror and could not be configured. Enable Settings > Pages > Source > GitHub Actions and review the Configure Pages log. The Saty+ home reads dashboard-data directly; see Persist data for its publication result.'
+          echo '::warning::Pages is not configured. Select Settings > Pages > Build and deployment > Source > GitHub Actions, then run this workflow on main. The public Saty+ home remains available. Once enabled, Pages reads the same live market API; scheduled JSON is reference/audit data.'
       - name: Upload only the static site
         if: steps.pages.outcome == 'success'
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4

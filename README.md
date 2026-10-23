@@ -10,13 +10,15 @@ The shared frontend is plain HTML, CSS, JavaScript and a canvas chart. The hoste
 
 This is a QA capture of the implemented interface, not a continuously updating market image.
 
-## Live home and scheduled mirror
+## Public home and live mirror
+
+The home is publicly viewable without a ChatGPT login. Bookmark **https://saty-plus-trading-desk.zestyfawn9.chatgpt.site/** for one-click access. GitHub Pages uses the same frontend and public market API after its repository setting is enabled. Owner sign-in is optional and applies only to the private paper journal.
 
 | Surface | Data path | Refresh and interpretation |
 | --- | --- | --- |
 | Hosted Saty+ home | Browser `GET /api/market` → Worker → TradingView public chart WebSocket; no login | Page polls every 15 seconds while visible. The Worker fetches new history when the next confirmed 3m bar is due, approximately its boundary plus 5 seconds. |
-| Optional GitHub Pages mirror | `market.json` and supporting JSON on `dashboard-data` | GitHub Actions refreshes about every 10 minutes. This is a dated reference, not the home's live path. |
-| Private paper journal | Existing same-origin API and original R2 record | Preserved separately from public market data. The webpage does not claim to run an external paper monitor automatically. |
+| GitHub Pages mirror, after enablement | Public home `/api/market` and `/api/evidence`, with credentials omitted | The same 15-second polling and cached confirmed bars as the home. Conditional requests reduce unchanged downloads. |
+| Private paper journal | Protected same-origin API and original R2 record | Owner sign-in for reading, separately authenticated service uploads. Anonymous visitors and Pages cannot read these records. |
 | Manual UW context | `uw.json` | Gamma, flow and dark-pool values remain MANUAL/placeholder until populated, with source time and instrument basis. |
 
 The home monitors the entire regular session, **09:30–16:00 ET**, with the exchange calendar handling holidays and early closes. Strategy entry windows remain independent: monitoring does not stop during midday or after the last eligible setup window.
@@ -62,13 +64,13 @@ The dependency-free JS port is checked against unchanged Python over **140 ticke
 
 Edit `site/data/uw.json` only with values actually observed. Set its timestamp, instrument, method, units and expiry coverage; keep unknown values null. Expired or mismatched context is excluded from the level map. SPX levels stay in index points and are not projected onto SPY. UW context does not change the frozen outcome frequency or entry rules.
 
-The original paper scanner and its external updater are retained. Its private R2 journal key, API and browser note keys remain separate from public replay observations. Public Pages cannot read that private journal. The old scanner has its own rules and outcome definition; those records are not counted as SATY target-before-stop evidence.
+The original paper scanner and its external updater are retained. Its private R2 journal key, API and browser note keys remain separate from public replay observations. Anonymous visitors and public Pages cannot read that private journal. The old scanner has its own rules and outcome definition; those records are not counted as SATY target-before-stop evidence. Updaters must use the current `sync-site.mjs`, which adds a service credential in memory while retaining the existing hidden-stdin input format; older copies are rejected. See [the update runbook](docs/desk-site-data-sync.md).
 
 ## Deployments and synchronization
 
 A push to SATY `main` runs the shared-data/optional Pages workflow. The generated branch publishes **`market.json`, `tv-evidence.json`, `latest.json`, `evidence.json`, `uw.json` and `learning.json`**, plus the existing replay observation audit. Main owns source, evidence captures, manual inputs and learning rules. The generated branch owns scheduled references.
 
-**A GitHub push does not automatically publish new code to the private Saty+ home.** The exposed Sites capabilities provide short-lived source credentials and a short-lived publish-on-push option, not a permanent GitHub webhook. No Site credential is stored in this public repository or GitHub Actions.
+**A GitHub push does not automatically publish new code to the Saty+ home.** The exposed Sites capabilities provide short-lived source credentials and a short-lived publish-on-push option, not a permanent GitHub webhook. No Site credential is stored in this public repository or GitHub Actions. Both hosts read the same live market endpoint; deploying new UI code to each remains a separate release step.
 
 For a complete manual sync, use this **one user step** in the Sites-enabled chat:
 
@@ -76,9 +78,9 @@ For a complete manual sync, use this **one user step** in the Sites-enabled chat
 
 The source helper, checks, packaging and native publication are then performed as one requested release. The CLI command `node hosting/sync-source.mjs /absolute/existing-site-checkout` copies source only; it **does not publish**. The operator procedure is in [hosting/README.md](hosting/README.md).
 
-To enable the optional https://carterwaynereed.github.io/SATY/ mirror, select **Settings → Pages → Source → GitHub Actions**, permit the workflow's contents/pages/id-token permissions, then run **Update shared data and Pages mirror** on `main`. Pages configuration failures are reported separately from shared-data publication. The home does not depend on Pages availability.
+To enable https://carterwaynereed.github.io/SATY/, open [Settings → Pages](https://github.com/carterwaynereed/SATY/settings/pages), choose **Build and deployment → Source → GitHub Actions**, then open [Update shared data and Pages mirror](https://github.com/carterwaynereed/SATY/actions/workflows/dashboard.yml) and choose **Run workflow → main → Run workflow**. No starter workflow is needed. Later pushes to `main` deploy Pages automatically. Its homepage and live data require no sign-in. The current GitHub connector cannot change this repository setting; see [public access and verification](docs/PUBLIC_ACCESS.md).
 
-The scheduled reference cron is `4,14,24,34,44,54 13-21 * * 1-5`, gated by XNYS sessions and close + 15 minutes. GitHub can delay scheduled jobs; this cannot provide the home's one-bar freshness target. See [GitHub's schedule documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
+The scheduled reference cron is `4,14,24,34,44,54 13-21 * * 1-5`, gated by XNYS sessions and close + 15 minutes. It maintains audit/reference files; neither host waits for it to receive live bars. GitHub can delay scheduled jobs. See [GitHub's schedule documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
 
 ## Local verification
 

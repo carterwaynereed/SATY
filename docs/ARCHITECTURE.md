@@ -1,10 +1,10 @@
 # Architecture and operating assumptions · 0.3
 
-The canonical source is SATY `main`; the existing Saty+ Site remains the home. Plain HTML/CSS/JS and canvas serve both the home and optional Pages mirror. The home adds a dependency-free Worker and keeps its existing owner-private audience. Static asset validation enforces a 500 KB budget including four-ticker seed data. There are no broker or order endpoints.
+The canonical source is SATY `main`; the existing Saty+ Site remains the home. Plain HTML/CSS/JS and canvas serve both the public home and Pages mirror. The home adds a dependency-free Worker. Public market access requires no login; the private paper journal has separate server authorization. Static asset validation enforces a 500 KB budget including four-ticker seed data. There are no broker or order endpoints.
 
 ## Home live path
 
-1. The browser polls same-origin **`GET /api/market` every 15 seconds** while visible. A bundled four-ticker snapshot supplies identifiable first-paint context until retrieval completes; its original timestamps are retained.
+1. The browser polls the home's **`GET /api/market` every 15 seconds** while visible: same-origin on the home, explicit public URL with omitted credentials on Pages. Both fetch the same `/api/evidence`. First paint shows CONNECTING; a bundled four-ticker snapshot is an explicitly held reference only if retrieval fails, retaining its original timestamps.
 2. The Worker opens the public, unauthenticated TradingView chart WebSocket for SPY, SPX, AAPL and GOOGL. It records resolved source metadata, observed delay, symbol attempts and a source fingerprint. Primary symbols are `AMEX:SPY`, `TVC:SPX`, `NASDAQ:AAPL` and `NASDAQ:GOOGL`; SPX can fall back to `SP:SPX` with its actual delay disclosed.
 3. Only completed RTH 3m bars enter the common JS port of frozen `saty-sig-2.0`. Replay requires 400 continuous prior 3m bars, the display session's opening sequence, and at least 100 completed daily bars. ATR uses daily sessions strictly before the display session. The free endpoint's native 10m request was unsupported, so trend candles require exactly ten completed 1m constituents aligned to the session open.
 4. In-memory request coalescing and a separate R2 market cache avoid repeated history downloads. A successful snapshot is reused until the next 3m boundary plus approximately five seconds. Failed feeds are retried on subsequent eligible polls. The API uses an ETag and returns **304** for an unchanged representation; the browser independently ages the retained bar timestamp.
@@ -30,11 +30,11 @@ SATY entry windows and context detector windows remain frozen; observing the mar
 | Frozen source, evidence captures and rules | GitHub `main` | Reviewed code, raw compressed public history, development ledgers, manual inputs and learning registry |
 | Private local scanner state | Ignored root `/data/` | Original monitor state; never copied into public assets or GitHub |
 
-`GET /api/snapshot` and the scheduled `POST /api/update` retain the original private paper contract. Sites authenticates the owner-private origin before Worker access. Pages has no private journal endpoint. External public-data requests omit Site credentials. Public source data and personal journal rows are never combined into a publicly deployed snapshot.
+`GET /api/snapshot` requires the signed-in owner's Sites identity or the scoped service credential before storage access. `POST /api/update` requires the service credential and existing no-Origin/updater marker checks. Runtime secrets define the owner and service key; absent configuration denies access. The original private schema and compare-and-swap storage remain intact. Pages has no private journal endpoint. Exact Pages-origin CORS is granted only to `/api/market` and `/api/evidence`, without credentials; it is not the private API's authorization mechanism. Public source data and personal journal rows are never combined into a publicly deployed snapshot.
 
-## Scheduled mirror and durable observations
+## Shared live mirror and durable observations
 
-GitHub Actions continues its approximately ten-minute XNYS-gated schedule, covering both New York UTC offsets and finalization through close + 15 minutes. `scripts/refresh_tv_market.py` captures all four public TradingView feeds, then `scripts/build_market.mjs` runs the same JS engine to produce `market.json`. This is a **scheduled reference** for static Pages, not the hosted home's live transport. A delayed Action cannot meet the one-bar target.
+GitHub Actions continues its approximately ten-minute XNYS-gated schedule, covering both New York UTC offsets and finalization through close + 15 minutes. `scripts/refresh_tv_market.py` captures all four public TradingView feeds, then `scripts/build_market.mjs` runs the same JS engine to produce `market.json`. This remains a **scheduled reference** and audit artifact. Both home and Pages get live bars directly from the home's public API, independently of the Action's timing. Conditional ETags avoid unchanged market/evidence transfers.
 
 The original Python refresh also preserves the public observation/outcome audit. First observations retain source, geometry, decision/observation times and the evidence available at receipt. Later outcomes, changed provider data and replay-membership revisions are separate append-only records. Restart recovery reconstructs first-observation IDs; outcome consumers deduplicate `(id, outcome_hash)` and membership revisions by `(id, kind, price_asof)`. A setup discovered after its modeled next-open entry is not certified timely forward performance.
 
@@ -54,6 +54,6 @@ Learning candidates require a sourced hypothesis, preregistered challenger and r
 
 ## Code release boundary
 
-A main push updates Actions/Pages; it does **not** permanently redeploy the private Site. Current Sites tools expose short-lived source credentials and short-lived publish-on-push behavior, not a permanent GitHub-to-Site webhook. A Site token is never embedded in Actions or this repository.
+A main push updates Actions/Pages after Pages is enabled; it does **not** permanently redeploy Site code. Current Sites tools expose short-lived source credentials and short-lived publish-on-push behavior, not a permanent GitHub-to-Site webhook. A Site token is never embedded in Actions or this repository. Live data is shared immediately because both hosts use the same public API.
 
 The complete one-step user request is: **“Sync current carterwaynereed/SATY main to the existing Saty+ home and publish it, preserving its audience and journal.”** The Sites-enabled assistant then opens the existing checkout, synchronizes reviewed tracked source, validates, packages and publishes it. `node hosting/sync-source.mjs /absolute/existing-site-checkout` performs source copying only. See [the operator release procedure](../hosting/README.md).

@@ -11,7 +11,7 @@ const destination=process.argv[2]&&resolve(process.argv[2]);
 const check=process.argv.includes('--check');
 if(!destination||destination===root||relative(root,destination)===''||!relative(root,destination).startsWith('..'))throw new Error('Use a separate existing Site checkout');
 const manifest=JSON.parse(await readFile(join(destination,'.openai/hosting.json'),'utf8'));
-if(!manifest.project_id||manifest.r2!=='BUCKET'||manifest.static)throw new Error('Expected the existing private Worker Site manifest and BUCKET binding');
+if(!manifest.project_id||manifest.r2!=='BUCKET'||manifest.static)throw new Error('Expected the existing Worker Site manifest and BUCKET binding');
 await stat(join(destination,'.git'));
 const tracked=cwd=>execFileSync('git',['ls-files','-z'],{cwd,encoding:'utf8'}).split('\0').filter(Boolean);
 const files=tracked(root).filter(path=>!path.startsWith('.openai/'));

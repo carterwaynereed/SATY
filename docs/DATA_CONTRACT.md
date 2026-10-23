@@ -1,17 +1,27 @@
-# Dashboard JSON contract (v1)
+# Dashboard JSON contract
 All times ISO 8601 including offset. Null means unavailable, never zero-imputed. Only confirmed bars.
 Money prices numeric rounded 4 decimals maximum. No NaN/Infinity.
-The Saty+ hosted home and Pages mirror read the same public bundle at
+The public Saty+ home and Pages mirror read the same live endpoints:
+`https://saty-plus-trading-desk.zestyfawn9.chatgpt.site/api/market` and `/api/evidence`.
+Market schema 2 contains `{schema_version:2, generated_at, symbols:{SPY,SPX,AAPL,GOOGL}}`;
+each symbol retains the fields described below and has its own feed fingerprint,
+evidence ID, confirmed-bar timestamp, health, session and six directional weights.
+Evidence contains a `by_symbol` map matching those instrument snapshots.
+Both public endpoints support ETag/304. Pages requests omit credentials; CORS is
+restricted to its exact origin. Private journal routes never grant CORS and require
+server authorization before storage access.
+
+Scheduled reference, manual context and learning data remain at
 `https://raw.githubusercontent.com/carterwaynereed/SATY/dashboard-data/`:
-`latest.json`, `evidence.json`, `uw.json`, and `learning.json`.
+`market.json`, `tv-evidence.json`, `latest.json`, `evidence.json`, `uw.json`, and `learning.json`.
 Requests omit credentials. Bundled data is a labeled fallback, never proof of a fresh feed.
-The publishing workflow commits these four files together; CDN caches may still
+The publishing workflow commits these files together; CDN caches may still
 serve different revisions. A probability headline requires matching
 `latest.evidence_id` and `evidence.stats_id`, matching strategy versions, and the
 existing per-target sample, source, time and evidence gates. Metadata success
 does not override a failed or stale market-data request. Private hosted scanner
 snapshots and paper-journal records are a separate same-origin API, never this public bundle.
-## site/data/latest.json
+## Legacy site/data/latest.json (schema 1 reference)
 {schema_version:1, generated_at, snapshot_id, strategy:{version:"saty-sig-2.0",name,session_basis:"RTH",notes:[]},
 session:{date,status:"OPEN|CLOSED|PREMARKET|HOLIDAY",open,close,timezone:"America/New_York",refresh_minutes:10},
 health:{state:"CURRENT|STALE|UNAVAILABLE|CLOSED",reason,price_asof,age_seconds,ttl_seconds:900,history_complete,warnings:[],source:{provider,symbol,interval,delay_seconds,realtime}},

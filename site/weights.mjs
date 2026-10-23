@@ -20,7 +20,7 @@ export function allocateEvidenceWeights(input = [], {fresh = false, inSession = 
   const neutral = 100-bull-bear, conflict = Math.min(bull,bear);
   const blocked = !fresh || !inSession;
   const call = blocked ? 0 : bull-conflict, put = blocked ? 0 : bear-conflict, wait = 100-call-put;
-  const reason = !fresh ? 'Feed unavailable or stale: reference rows retained; live allocation is WAIT.' : !inSession ? 'Outside the regular session: reference rows retained; live allocation is WAIT.' : 'Fresh confirmed bar during the regular session. Entry eligibility is evaluated separately.';
+  const reason = !inSession ? 'Outside the regular session: reference rows retained; live allocation is WAIT.' : !fresh ? 'Feed unavailable or stale: reference rows retained; live allocation is WAIT.' : 'Fresh confirmed bar during the regular session. Entry eligibility is evaluated separately.';
   const math = `Bull ${bull} + bear ${bear} + neutral ${neutral} = 100 points. Conflict = min(${bull}, ${bear}) = ${conflict}. ${blocked ? `Session/feed hold overrides to CALL 0%, PUT 0%, WAIT 100%.` : `CALL = ${bull} − ${conflict} = ${call}%; PUT = ${bear} − ${conflict} = ${put}%; WAIT = ${neutral} + 2 × ${conflict} = ${wait}%.`}`;
   return {call,put,wait,bull,bear,neutral,conflict,blocked,reason,features,math};
 }

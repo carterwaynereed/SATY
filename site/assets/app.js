@@ -3,26 +3,42 @@ export const finite = value => typeof value === 'number' && Number.isFinite(valu
 export const number = (value, digits = 2) => finite(value) ? value.toLocaleString('en-US', {minimumFractionDigits: digits, maximumFractionDigits: digits}) : '—';
 export const percent = value => finite(value) ? `${Math.round(value * 100)}%` : '—';
 
-/* Conditional market reads retain the last parsed bundle only after a valid 200 response. */
-export function createMarketReader(fetcher = fetch) {
-  let previous = null, etag = null, previousURL = null;
-  return async function readMarket(url, {sameOrigin = false, timeout = 30000} = {}) {
-    if (url !== previousURL) { previous = null; etag = null; previousURL = url; }
+export const PUBLIC_DESK_ORIGIN = 'https://saty-plus-trading-desk.zestyfawn9.chatgpt.site';
+export function marketEndpoints(hostname) {
+  const sameOrigin = hostname === 'saty-plus-trading-desk.zestyfawn9.chatgpt.site' || ['localhost','127.0.0.1','terminal.local'].includes(hostname);
+  const base = sameOrigin ? '' : PUBLIC_DESK_ORIGIN;
+  return {market:`${base}/api/market`,evidence:`${base}/api/evidence`,sameOrigin};
+}
+
+/* Only public JSON enters these readers. Each URL has its own conditional
+   cache; cross-origin reads omit credentials and need the server's public CORS. */
+function conditionalJSONReader(fetcher, valid, kind) {
+  let cache = {url:null,value:null,etag:null};
+  return async function read(url, {sameOrigin = false, timeout = 30000} = {}) {
+    if (url !== cache.url) cache = {url,value:null,etag:null};
+    const entry = cache;
     const controller = new AbortController(), timer = setTimeout(() => controller.abort(), timeout);
     try {
-      const headers = sameOrigin && etag ? {'If-None-Match':etag} : {};
+      const headers = entry.etag ? {'If-None-Match':entry.etag} : {};
       const response = await fetcher(url,{headers,credentials:sameOrigin?'same-origin':'omit',cache:'no-store',signal:controller.signal});
       if (response.status === 304) {
-        if (!sameOrigin || !previous) throw new Error('Market returned 304 without a prior same-origin snapshot');
-        return previous;
+        if (!entry.value) throw new Error(`${kind} returned 304 without a prior snapshot for this URL`);
+        return entry.value;
       }
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const value = await response.json();
-      if (!value || value.schema_version !== 2 || !value.symbols || typeof value.symbols !== 'object' || Array.isArray(value.symbols)) throw new Error('Unsupported multi-ticker snapshot');
-      previous = value; etag = sameOrigin ? response.headers.get('ETag') : null;
+      if (!valid(value)) throw new Error(`Unsupported ${kind}`);
+      entry.value = value; entry.etag = response.headers.get('ETag');
       return value;
     } finally { clearTimeout(timer); }
   };
+}
+const record = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+export function createMarketReader(fetcher = fetch) {
+  return conditionalJSONReader(fetcher,value=>value?.schema_version===2&&record(value.symbols),'multi-ticker snapshot');
+}
+export function createEvidenceReader(fetcher = fetch) {
+  return conditionalJSONReader(fetcher,value=>[1,2].includes(value?.schema_version)&&record(value.by_symbol)&&Object.keys(value.by_symbol).length>0&&Object.values(value.by_symbol).every(record),'ticker evidence');
 }
 const dateValue = value => typeof value === 'string' ? Date.parse(value) : NaN;
 const etDate = value => new Intl.DateTimeFormat('en-CA', {timeZone: 'America/New_York', year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(value));
