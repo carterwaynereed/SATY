@@ -1,6 +1,16 @@
 import {ALERT_PROFILES,metricText} from './outcome-stats.mjs';
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),price=x=>Number.isFinite(x)?'$'+x.toFixed(2):'pending';
-export function renderLiveAlerts(root,snapshot,{failed=false,onSelect,now=Date.now()}={}){
+export function renderLiveAlerts(root,snapshot,{failed=false,onSelect,now=Date.now(),referenceOnly=false}={}){
+ if(referenceOnly){
+  if(!root)return;
+  const x=snapshot?.reference_models?.live_alerts??snapshot?.live_alerts;
+  const descriptions={ON_LOW:'A pre-market or overnight low reclaim with falling VIX context.',MORNING_HIGH:'A rejection of the first-hour high with weaker hourly structure.',BOX_BREAK:'A close through the call trigger after opening inside the trigger box.'};
+  root.innerHTML='<div class="panel-head"><h2>Other setup research</h2><span class="tag">REFERENCE ONLY</span></div><p class="fine">Retired standalone models. These panels do not create live alerts or change the one-signal daily limit.</p>'+['ON_LOW','MORNING_HIGH','BOX_BREAK'].map(id=>{
+   const p=ALERT_PROFILES[id],t=x?.trades?.filter(t=>t.setup_id===id).at(-1);
+   return `<section class="candidate"><div class="panel-head"><h3>${esc(p.label)}</h3><span class="tag">${esc(p.confidence)} · RESEARCH</span></div><p>${esc(descriptions[id])}</p><p class="fine">Reported replay: ${esc(metricText(p.reported))}${id==='ON_LOW'?' · 0.3 ATR reached: 44%':''}. ${id==='MORNING_HIGH'?'Slow-fade hypothesis. ':''}Not independently reproduced; unavailable sample sizes remain explicit.</p>${t?`<p>Recorded entry ${price(t.entry)} · stop ${price(t.stop)} · target ${price(t.target?.price)} · ${esc(t.status)}${t.exit_reason?' · '+esc(t.exit_reason):''}</p>${Number.isFinite(t.entry)?`<button type="button" data-alert-id="${esc(t.id)}">View replay levels</button>`:''}`:''}</section>`;
+  }).join('')+'<p class="fine">The original fixed-target results are separate from Momentum Tracker milestone outcomes.</p>';
+  for(const button of root.querySelectorAll('[data-alert-id]'))button.onclick=()=>onSelect?.(button.dataset.alertId);return;
+ }
  if(!root)return;const x=snapshot?.live_alerts,live=!failed&&snapshot?.health?.state==='CURRENT'&&now-Date.parse(snapshot.health.price_asof)>=0&&now-Date.parse(snapshot.health.price_asof)<=225000;
  root.innerHTML=`<div class="panel-head"><h2>Best live alerts <small>· signal only</small></h2><span class="tag">${x?.global_total??0}/5 today · ${x?.ticker_total??0}/3 ticker</span></div><p class="fine">Aim for 1–2 best qualified setups. No forced alerts. Confidence then PF ranks simultaneous candidates; no new entries after 3 PM.</p>`+['ON_LOW','MORNING_HIGH','BOX_BREAK'].map(id=>{
   const p=ALERT_PROFILES[id],inputHold=(x?.holds??[]).some(h=>h.includes('budget')||(id==='ON_LOW'&&(h.includes('ON-Low')||h.includes('VIX15')))||(id==='MORNING_HIGH'&&h.includes('Morning High'))),t=x?.trades?.filter(t=>t.setup_id===id).at(-1),status=!live?'REFERENCE / DATA HOLD':inputHold?'DATA HOLD':t?.time_exit_pending?'DATA HOLD':t?.status==='PENDING_ENTRY'&&now-Date.parse(t.decision_at)<=225000?(p.side===1?'CALL':'PUT')+' · NEXT OPEN':t?.status==='TRACKING'?(p.side===1?'CALL':'PUT')+' · HOLD':'WAIT';

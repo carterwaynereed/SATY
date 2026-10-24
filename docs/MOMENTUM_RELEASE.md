@@ -1,11 +1,21 @@
-# Simple momentum dashboard
+# Momentum Tracker and reference desk
 
-The home screen has one daily momentum observation, a collapsed secondary
-research watch, four direction-watch chips and one display-only Unusual Whales
-context card. The chart/research archive, old lessons and private paper journal
-remain behind Details. Old Level Bounce and Box Break streams no longer feed
-the hosted live API or render live guidance on the archive/EOD pages. Trigger
-escape remains an event in the single momentum policy, not another live card.
+The light home screen puts one daily Momentum Tracker first, followed by a
+secondary research watch, four direction-watch chips and display-only Unusual
+Whales context. The full desk is visible below: ticker chart, ATR levels, Pivot
+Ribbon and phase, directional evidence weights, reference setups, notes, and
+the owner-only paper journal. End-of-day review remains directly linked. These
+tools support review without becoming additional live signal streams.
+
+Level Bounce, Box Break and prior score-based models remain labeled REFERENCE;
+they do not feed the hosted live signal policy. Trigger escape remains an event
+inside the single momentum policy, not another live card. Evidence weights are
+context rather than probabilities. No order controls are exposed.
+
+One controller, `desk.mjs`, owns ticker selection, data reads and polling. It
+calls the pure `momentum-dashboard.mjs` renderer with that same market bundle;
+the Momentum Tracker does not start a second reader or timer. The prior archive
+URL remains available for existing links.
 
 ## Operational limits
 
@@ -29,6 +39,12 @@ escape remains an event in the single momentum policy, not another live card.
   It does not use a connected user's tools as an implicit production feed.
 - The owner-only paper journal uses its existing route, authorization and R2 key.
   No journal rows, credentials or private data ship in public assets.
+- The complete static artifact stays below 850 KB, including the reference
+  pages and generated four-ticker/research data. The initial home's HTML,
+  stylesheets and transitive static JavaScript dependencies have a separate
+  240 KB cap, measured without compression or API responses. The restored home
+  currently loads about 224 KB across 20 local assets. Validation follows the
+  actual dependency graph so a new import cannot bypass that home budget.
 
 See MOMENTUM_ENGINE.md for frozen rules and UW_DISPLAY_CONTEXT.md for the display
 contract. The local paper server remains an archive/research tool; the hosted

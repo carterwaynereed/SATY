@@ -146,11 +146,13 @@ close. It finalizes capture, reviews immutable observations, runs shadow replay,
 and persists the results. Holidays and pre-close calls skip review. Full review
 rows live under `state/reviews/`; the site gets the latest ten compact reviews.
 Source artifacts remain buildless with no new production dependency. The total
-static artifact budget is 850 KB, covering archived Details pages, four-ticker
-snapshots and generated research summaries. The initial Momentum Tracker HTML,
-CSS and JavaScript dependencies have a separate 75 KB cap; both limits measure
-uncompressed bytes and exclude API responses. Validate the restored and generated
-payload as well as committed seeds, because scheduled observations can be larger.
+static artifact budget is 850 KB, covering reference pages, four-ticker snapshots
+and generated research summaries. The initial Momentum Tracker and visible
+reference desk have a separate 240 KB cap for HTML, stylesheets and transitive
+static JavaScript dependencies, discovered from the actual home entry point.
+Both limits measure uncompressed bytes and exclude API responses. Validate the
+restored and generated payload as well as committed seeds, because scheduled
+observations can be larger.
 Full 1m histories and research ledgers are not duplicated into the frontend. The
 seed predates minute capture and is honestly missing it until the shared Action
 writes actual minute data.
