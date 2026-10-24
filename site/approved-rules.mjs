@@ -56,7 +56,7 @@ export function replayApproved(rows,levels,session,{runner=true,now=Date.now(),m
   }
   const direction=r.score_direction??scoreDirection(r.evidence_score),flip=direction!=='WAIT'&&direction!==previous;
   const allowed=contiguous&&flip&&!position&&entries<2&&r.et_close<'15:00'&&at<end&&(!cooldownUntil||at>=cooldownUntil);
-  if(allowed){const side=sign(direction),swing=bars.slice(Math.max(0,i-4),i+1);if(swing.length===5){const managed=r.managed_entry?.side===side?r.managed_entry:null;
+  if(allowed){const side=sign(direction),swing=bars.slice(Math.max(0,i-4),i+1),managed=r.managed_entry?.side===side?r.managed_entry:null;if(managed||swing.length===5){
    pending={at,side,decision_at:r.time,stop:managed?.stop??(side===1?Math.min(...swing.map(x=>x.low)):Math.max(...swing.map(x=>x.high))),trigger:levels.find(l=>l.label===(side===1?'+23.6':'-23.6'))?.price,setup:managed?.setup??'60% score flip · 5-bar swing'};
   }}
   decisions.push({time:r.time,decision:pending?direction:'WAIT',direction,entries,cooldown_until:cooldownUntil,position_id:position?.id??null,state:position?.runner?'RUNNER':position?'HOLD':pending?'NEXT_OPEN':'WAIT'});
