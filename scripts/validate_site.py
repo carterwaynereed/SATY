@@ -93,7 +93,7 @@ def main():
     assert not list(site.rglob('*.py')), 'Python source should not be in the deployed site'
     assert not list(site.rglob('node_modules')), 'No runtime dependencies belong in the static artifact'
     payload = sum(p.stat().st_size for p in site.rglob('*') if p.is_file())
-    assert payload < 500_000, f'Static payload exceeded the v1 budget: {payload} bytes'
+    assert payload < 750_000, f'Static payload exceeded the 750 KB four-ticker/1m budget: {payload} bytes'
     print(f'Public JSON, frozen source hashes and static payload validated ({payload:,} bytes).')
 
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import json
 from pathlib import Path
 import subprocess
@@ -61,13 +61,16 @@ async def capture_ticker(ticker: str, pull=tvdata._get, clock=None):
                     one_raw = None
                     notes.append(f"10m ribbon unavailable: {type(exc).__name__}: {str(exc)[:160]}")
                 now = aware_now(clock)
-                bars = json_bars(regular_completed(three, now, 3), three_volume)
+                delay = meta.get("delay")
+                delay = max(0, delay) if isinstance(delay, (int, float)) else 0
+                cutoff = now - timedelta(seconds=delay)
+                bars = json_bars(regular_completed(three, cutoff, 3), three_volume)
                 if not bars:
                     raise ValueError("No confirmed regular-session 3m bars")
                 one_bars = []
                 if one_raw:
                     one, one_volume = frame_from_values(one_raw)
-                    one_bars = json_bars(regular_completed(one, now, 1), one_volume)
+                    one_bars = json_bars(regular_completed(one, cutoff, 1), one_volume)
                 source = {"provider": "TradingView", "symbol": symbol, "source_id": identity["source_id"],
                           "pro_name": identity["pro_name"], "interval": "3m", "session_basis": "RTH", "adjustment": "splits",
                           "feed_fingerprint": identity["fingerprint"],
@@ -94,6 +97,7 @@ async def capture_ticker(ticker: str, pull=tvdata._get, clock=None):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, default=ROOT / "site/data/market.json")
+    parser.add_argument("--state-dir", type=Path, help="Durable public research archive; never private journal")
     parser.add_argument("--now", help="Aware clock override, for an explicitly dated replay")
     args = parser.parse_args()
     with ThreadPoolExecutor(max_workers=4) as pool:
@@ -104,6 +108,8 @@ def main():
         path = Path(directory) / "feeds.json"
         path.write_text(json.dumps(feeds, separators=(",", ":"), allow_nan=False))
         command = ["node", str(ROOT / "scripts/build_market.mjs"), "--input", str(path), "--output", str(args.output.resolve())]
+        if args.state_dir:
+            command += ["--state-dir", str(args.state_dir.resolve())]
         if args.now:
             command += ["--now", args.now]
         subprocess.run(command, cwd=ROOT, check=True)

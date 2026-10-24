@@ -1,0 +1,35 @@
+name: Sync public EOD inputs
+on:
+  workflow_dispatch:
+    inputs:
+      payload:
+        description: 'PUBLIC JSON only. Requires public_safe=true. No credentials or private journal data.'
+        required: true
+        type: string
+  issues:
+    types: [opened, edited]
+permissions:
+  contents: read
+concurrency:
+  group: saty-dashboard-data
+  queue: max
+  cancel-in-progress: false
+jobs:
+  sync:
+    if: github.event_name == 'workflow_dispatch' || (github.event.issue.user.login == github.repository_owner && github.actor == github.repository_owner && startsWith(github.event.issue.title, '[SATY input sync]'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: main
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - run: python scripts/sync_state.py prepare
+      - name: Validate explicit public opt-in and save allowlisted observations
+        run: python scripts/sync_public_inputs.py --event "$GITHUB_EVENT_PATH"
+      - name: Persist without altering source or private storage
+        run: python scripts/sync_state.py commit
