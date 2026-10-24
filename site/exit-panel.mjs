@@ -1,3 +1,4 @@
+import {chartLevels,drawChartOverlays} from './chart-overlays.mjs';
 import {analyzeEOD} from './eod-analysis.mjs';
 import {sessionMode} from './session-mode.mjs';
 const finite=Number.isFinite,arr=x=>Array.isArray(x)?x:[];
@@ -17,7 +18,7 @@ function approvedExitModel(snapshot,options){
  const original=arr(policy.trades).find(t=>t.id===chosen?.id),fresh=!x.reference&&original?.status==='TRACKING';
  x.stats='Approved rule outcome sample: see paired policy review. New exit policy has no calibrated probability.';
  const seconds=policy.cooldown_until?Math.max(0,Math.ceil((Date.parse(policy.cooldown_until)-now)/1000)):0,currentDay=sessionMode(now).day===snapshot.session?.date;
- x.policy_note=`Trades today: ${currentDay?policy.entries_today:0}/2 · Cooldown: ${seconds?Math.floor(seconds/60)+':'+String(seconds%60).padStart(2,'0'):'ready'} · No new entries after 3 PM${currentDay?'':' · prior session reference '+snapshot.session?.date}`;
+ x.policy_note=`Trades today: ${currentDay?policy.entries_today:0} · Cooldown: ${seconds?Math.floor(seconds/60)+':'+String(seconds%60).padStart(2,'0'):'ready'} · No new entries after 3 PM${currentDay?'':' · prior session reference '+snapshot.session?.date}`;
  if(!original){x.action=policy.pending?'Confirmed score flip. Model awaits the next available bar open; no order or historical fill is asserted.':'WAIT for a new confirmed 60% score flip. '+x.policy_note;return x;}
  x.stop={label:original.runner?'Runner trailing stop':'Managed / 5-bar stop',price:original.stop};
  x.targets=original.target?[original.target]:[];
@@ -91,11 +92,11 @@ export function renderExitPanel(root,snapshot,options={}){
  return x;
 }
 // Small shared EOD chart: confirmed RTH candles, labeled stop and target lines.
-export function drawExitChart(canvas,snapshot,model){
+export function drawExitChart(canvas,snapshot,model,{all=false}={}){
  const bars=arr(snapshot?.bars).slice(-100);if(!bars.length)return;
- const ctx=canvas.getContext('2d'),w=canvas.width=800,h=canvas.height=220;
- const values=[...bars.flatMap(b=>[b.high,b.low]),...model.lines.map(l=>l.price)].filter(finite),low=Math.min(...values),high=Math.max(...values),range=high-low||1,y=p=>15+(high-p)/range*(h-35);
- ctx.clearRect(0,0,w,h);bars.forEach((b,i)=>{ctx.strokeStyle=b.close>=b.open?'#bce58c':'#eb9b91';ctx.beginPath();ctx.moveTo(5+i*650/bars.length,y(b.low));ctx.lineTo(5+i*650/bars.length,y(b.high));ctx.stroke();});
- for(const l of model.lines){ctx.strokeStyle=ctx.fillStyle=l.exitRole==='stop'?'#ff9f94':'#c2ed88';ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(0,y(l.price));ctx.lineTo(660,y(l.price));ctx.stroke();ctx.font='12px sans-serif';ctx.fillText(`${l.exitRole.toUpperCase()} ${l.label} ${money(l.price)}`,665,y(l.price)+4);}ctx.setLineDash([]);
- canvas.setAttribute('aria-label',`Confirmed RTH chart. ${model.lines.map(l=>l.exitRole+' '+l.label+' '+money(l.price)).join('; ')}`);
+ const rect=canvas.getBoundingClientRect(),w=rect.width||800,h=rect.height||220,dpr=Math.min(globalThis.devicePixelRatio||1,2);canvas.width=w*dpr;canvas.height=h*dpr;const ctx=canvas.getContext('2d');ctx.scale(dpr,dpr);const right=w-Math.min(132,w*.38),levels=chartLevels(snapshot,model,{all});
+ const values=[...bars.flatMap(b=>[b.high,b.low]),...levels.filter(l=>l.exitRole==='stop'||l.exitRole==='target').map(l=>l.price)].filter(finite),low=Math.min(...values),high=Math.max(...values),range=high-low||1,y=p=>15+(high-p)/range*(h-35);
+ ctx.clearRect(0,0,w,h);bars.forEach((b,i)=>{ctx.strokeStyle=b.close>=b.open?'#bce58c':'#eb9b91';ctx.beginPath();ctx.moveTo(5+i*(right-10)/bars.length,y(b.low));ctx.lineTo(5+i*(right-10)/bars.length,y(b.high));ctx.stroke();});
+ drawChartOverlays(ctx,levels,{left:3,right,width:w,top:10,bottom:h-15,y});
+ canvas.setAttribute('aria-label',`Confirmed RTH chart. ${levels.map(l=>l.exitRole+' '+l.label+' '+money(l.price)).join('; ')}`);
 }

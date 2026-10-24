@@ -9,7 +9,7 @@ const $=id=>document.getElementById(id),fmt=number;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const DATA='https://raw.githubusercontent.com/carterwaynereed/SATY/dashboard-data/';
 const ep=marketEndpoints(location.hostname),readMarket=createMarketReader();
-let exitSelections={},lastPoll=0;
+let exitSelections={},lastPoll=0,showAllChartLevels=false;
 let bundle=null,shared=null,fetchFailed=false,busy=false,metadataAt=0;
 async function get(url){const r=await fetch(url,{cache:'no-store',credentials:'omit',signal:AbortSignal.timeout(15000)});if(!r.ok)throw Error(new URL(url,location.href).pathname+' HTTP '+r.status);return r.json();}
 const localKey=id=>'saty-eod-'+$('symbol').value+'-'+id;
@@ -25,7 +25,7 @@ function render(){
  renderRadar($('direction-radar'),bundle,{selected:$('symbol').value,onSelect:symbol=>{$('symbol').value=symbol;loadFields();render();}});
   const s=bundle?.symbols?.[$('symbol').value];if(!s){$('status').textContent='DATA HOLD · Instrument unavailable.';return;}
   const symbol=$('symbol').value;
-  const model=renderExitPanel($('exit-panel'),s,{selectedId:exitSelections[symbol],failed:fetchFailed,extended:bundle?.extended_hours?.[symbol],manual:shared?.by_symbol?.[symbol],onSelect:id=>{exitSelections[symbol]=id;render();}});drawExitChart($('exit-chart'),s,model);
+  const model=renderExitPanel($('exit-panel'),s,{selectedId:exitSelections[symbol],failed:fetchFailed,extended:bundle?.extended_hours?.[symbol],manual:shared?.by_symbol?.[symbol],onSelect:id=>{exitSelections[symbol]=id;render();}});drawExitChart($('exit-chart'),s,model,{all:showAllChartLevels});
   const h=snapshotHealth(s,Date.now(),fetchFailed);
   $('status').className='connection '+(h.tone==='hold'?'warning':'');
   $('status').textContent=h.state+' · '+h.reason+' · '+(s.health?.source?.feed_name||s.health?.source?.symbol||'source unavailable')+' · last 3m '+(s.health?.price_asof||'unknown');
@@ -83,5 +83,6 @@ $('prepare-sync').onclick=()=>{try{
   $('sync-preview').value=prepared.json;$('submit-sync').href=prepared.url;$('submit-sync').hidden=false;
   $('sync-status').textContent='Review the exact public JSON below, then submit the GitHub issue as the repo owner. Nothing is sent by preparing this preview.';
 }catch(e){$('sync-status').textContent=e.message;$('submit-sync').hidden=true;}};
+$('all-eod-levels').onchange=e=>{showAllChartLevels=e.target.checked;render();};new ResizeObserver(()=>render()).observe($('exit-chart'));
 $('symbol').onchange=()=>{loadFields();render();refresh();};$('refresh').onclick=refresh;
 clock();showLessons();refresh();setInterval(clock,1000);setInterval(()=>{if(!document.hidden&&shouldPoll(lastPoll,Date.now(),bundle?.symbols?.[$('symbol').value]?.session))refresh();},1000);
