@@ -4,7 +4,7 @@ import {readFile,mkdtemp,mkdir,writeFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';import {join} from 'node:path';import {execFileSync} from 'node:child_process';
 import {APPROVED_VERSION,scoreDirection,replayApproved} from '../site/approved-rules.mjs';
 import {radarScore} from '../site/radar.mjs';
-import {policyContext} from '../lib/approved-policy.mjs';
+import {policyContext,attachApproved} from '../lib/approved-policy.mjs';
 import {exitModel} from '../site/exit-panel.mjs';
 import {fixture} from './research-fixtures.mjs';
 const open=Date.parse('2026-10-23T13:30:00Z'),session={date:'2026-10-23',open:new Date(open).toISOString(),close:'2026-10-23T20:00:00Z'},now=Date.parse(session.close)+10000;
@@ -42,3 +42,5 @@ test('GET READY remains an alert, approved panel displays cap, cutoff and cooldo
 test('prospective policy review never grades the supplied development week',async()=>{const state=await mkdtemp(join(tmpdir(),'approved-monitor-'));try{await mkdir(join(state,'bars','2026-10-23'),{recursive:true});await writeFile(join(state,'bars','2026-10-23','SPY.json'),JSON.stringify(fixture()));execFileSync(process.execPath,['scripts/review_approved.mjs','--state-dir',state,'--data-dir',join(state,'public'),'--now','2026-10-24T02:00:00Z']);const output=JSON.parse(await readFile(join(state,'public','policy-evidence.json'),'utf8'));assert.equal(output.session_count,0);assert.equal(output.runner.n,0);assert.equal(output.no_runner.n,0);assert.equal(output.promotion.promoted,false);}finally{await rm(state,{recursive:true,force:true});}});
 
 test('opening managed stop does not require five session bars; swing fallback does',()=>{const r=rows(4);flip(r,1);r[1].managed_entry={side:1,stop:98,setup:'trigger break'};assert.equal(run(r).entries_today,1);assert.equal(run(r).trades[0].original_stop,98);delete r[1].managed_entry;assert.equal(run(r).entries_today,0);});
+
+test('public policy bundle omits duplicate per-bar arrays while ledger retains them',()=>{const f=fixture(),snapshot={session:f.session,bars:[]},publicValue=attachApproved(f,snapshot,now);assert.equal(publicValue.approved_rules.decisions,undefined);assert.equal(publicValue.conservative_rules.decisions,undefined);assert.ok(policyContext(f,f.session,now).rows.length===130);assert.ok(JSON.stringify(publicValue).length<25000);});

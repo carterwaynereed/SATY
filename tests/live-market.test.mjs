@@ -101,3 +101,10 @@ test('public market API shares exact data with Pages, supports conditional reads
   assert.equal(privateReads,0);assert.equal(privateWrites,0);
   for(const method of ['POST','PUT','DELETE'])assert.equal((await worker.fetch(new Request('https://desk.example/api/market',{method}),{BUCKET:x.bucket})).status,404);
 });
+test('previous-release cached policy decisions are omitted from the public presentation',async()=>{
+ const x=setup('2026-10-23T20:01:00Z');await x.get(x.bucket);
+ const old=JSON.parse(x.bucket.data.get(MARKET_KEY));for(const s of Object.values(old.symbols)){s.approved_rules.decisions=[{time:'old'}];s.conservative_rules.decisions=[{time:'old'}];}
+ x.bucket.data.set(MARKET_KEY,JSON.stringify(old));
+ const get=createMarketReader(evidence,calendar,{clock:()=>t('2026-10-23T20:02:00Z'),reader:async()=>{throw Error('Should use complete closed cache');}}),publicValue=await get(x.bucket);
+ for(const s of Object.values(publicValue.symbols)){assert.equal(s.approved_rules.decisions,undefined);assert.equal(s.conservative_rules.decisions,undefined);assert.ok(s.approved_rules.trades);}
+});
