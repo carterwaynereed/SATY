@@ -3,7 +3,7 @@ name: Validate dashboard
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, fix/eod-data-ledger-shadow]
     paths-ignore: ['docs/**', '**.md']
 
 permissions:
