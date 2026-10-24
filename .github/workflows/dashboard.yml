@@ -73,6 +73,12 @@ jobs:
       - name: Measure live Level Bounce separately from MAIN and shadow strategies
         if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
         run: node scripts/review_level_bounce.mjs --state-dir .dashboard-state/state
+      - name: Capture hidden Level Bounce v2 native timeframe context
+        if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
+        run: python scripts/capture_bounce_v2_context.py --state-dir .dashboard-state/state
+      - name: Measure hidden Level Bounce v2 independently
+        if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
+        run: node scripts/review_bounce_v2.mjs --state-dir .dashboard-state/state
       - name: Validate static payload
         if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
         run: python scripts/validate_site.py
