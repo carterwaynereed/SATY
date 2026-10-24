@@ -12,6 +12,10 @@ export function replayApproved(rows,levels,session,{runner=true,now=Date.now(),m
  let position=null,pending=null,entries=0,cooldownUntil=null,previous='WAIT',lastEvent=null,netRealized=0;
  const trades=[],decisions=[];
  const nextTarget=(side,price)=>levels.filter(l=>finite(l.price)&&Math.abs(l.multiple)<=1&&side*(l.price-price)>1e-8).sort((a,b)=>side*(a.price-b.price))[0]??null;
+ function retestTargetBeforeTime(p,b,prior){
+  const hit=p.side===1?b.high>=p.target.price:b.low<=p.target.price;
+  return p.setup_id==='TRIGGER_RETEST'&&hit&&(!p.runner_permitted||p.runner||prior?.row_directions?.[0]!==p.side);
+ }
  function exit(price,at,reason,index){const p=position;Object.assign(p,{status:'CLOSED',exit:price,exit_at:new Date(at).toISOString(),exit_reason:reason,return_pct:p.side*(price/p.entry-1)*100});netRealized+=p.return_pct;if(p.return_pct<=0)cooldownUntil=at+1800000;lastEvent={kind:'EXIT',reason,time:p.exit_at,price};position=null;}
  for(let i=0;i<bars.length;i++){
   const r=bars[i],start=Date.parse(r.bar_open),at=Date.parse(r.time),side=sign(r.score_direction??scoreDirection(r.evidence_score));
@@ -40,6 +44,7 @@ export function replayApproved(rows,levels,session,{runner=true,now=Date.now(),m
    const stopped=p.side===1?b.low<=p.stop:b.high>=p.stop;
    if(p.side*(b.open-p.stop)<=0)exit(b.open,start,'STOP HIT',i);
    else if(stopped)exit(p.stop,exitTime,'STOP HIT',i);
+   else if(exitTime>=end&&retestTargetBeforeTime(p,b,bars[i-1]))exit(p.side*(b.open-p.target.price)>=0?b.open:p.target.price,exitTime,'ATR target',i);
    else if(exitTime>=end)exit(b.close,end,'15:55 time exit',i);
    else {
     const prior=bars[i-1]??r,target=p.target,hit=p.side===1?b.high>=target.price:b.low<=target.price;
@@ -71,7 +76,7 @@ export function replayApproved(rows,levels,session,{runner=true,now=Date.now(),m
  if(position&&now>=end&&!position.time_exit_pending){
   const last=bars.at(-1),start=Date.parse(last?.time),subset=minutes.filter(m=>Date.parse(m.time)>=start&&Date.parse(m.time)+60000<=end).sort((a,b)=>Date.parse(a.time)-Date.parse(b.time));
   if(start<end&&subset.length===(end-start)/60000&&subset.every((m,j)=>Date.parse(m.time)===start+j*60000)){
-   for(const b of subset){if(!position)break;const at=Date.parse(b.time)+60000,p=position;if(p.side*(b.open-p.stop)<=0)exit(b.open,Date.parse(b.time),'STOP HIT',bars.length);else if(p.side===1?b.low<=p.stop:b.high>=p.stop)exit(p.stop,at,'STOP HIT',bars.length);else if(at===end)exit(b.close,end,'15:55 time exit',bars.length);}
+   for(const b of subset){if(!position)break;const at=Date.parse(b.time)+60000,p=position;if(p.side*(b.open-p.stop)<=0)exit(b.open,Date.parse(b.time),'STOP HIT',bars.length);else if(p.side===1?b.low<=p.stop:b.high>=p.stop)exit(p.stop,at,'STOP HIT',bars.length);else if(retestTargetBeforeTime(p,b,last))exit(p.side*(b.open-p.target.price)>=0?b.open:p.target.price,at,'ATR target',bars.length);else if(at===end)exit(b.close,end,'15:55 time exit',bars.length);}
   }else if(start<end){position.time_exit_pending=true;position.exit_reason='15:55 minute unavailable; DATA HOLD';}
  }
  return {version:APPROVED_VERSION,runner_enabled:runner,trades,decisions,position,pending,entries_today:entries,realized_net_pct:netRealized,fourth_entry_eligible:entries===3&&entryAllowance(entries,bars.at(-1)?.radar?.score,netRealized,!trades.some(t=>t.status==='UNRESOLVED')),cooldown_until:cooldownUntil?new Date(cooldownUntil).toISOString():null,cooldown_seconds:cooldownUntil?Math.max(0,Math.ceil((cooldownUntil-now)/1000)):0,last_event:lastEvent,entry_note:'No new entries after 3 PM',signal_only:true};
