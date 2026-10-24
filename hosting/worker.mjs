@@ -58,7 +58,7 @@ export function createWorker(assets, readHosted, writeHosted, getMarket = null) 
         if (!getMarket) return publicHeaders(request,json({error:'Live TradingView adapter is not configured'}, 503));
         try {
           const market=await getMarket(env.BUCKET);
-          const revision=market.generated_at+'|'+Object.entries(market.symbols).map(([s,v])=>s+':'+v.health?.state+':'+v.session?.calendar_date).join('|');
+          const revision=JSON.stringify(market.extended_hours??{})+'|'+market.generated_at+'|'+Object.entries(market.symbols).map(([s,v])=>s+':'+v.health?.state+':'+v.session?.calendar_date).join('|');
           return await publicResponse(request,JSON.stringify(market),revision);
         }
         catch {return publicHeaders(request,json({error:'TradingView market refresh failed; retain reference bars and DATA HOLD'}, 503));}

@@ -1,3 +1,5 @@
+import {renderExitPanel,drawExitChart} from './exit-panel.mjs';
+import {shouldPoll} from './session-mode.mjs';
 import {marketEndpoints,createMarketReader,number,snapshotHealth} from './assets/app.js';
 import {analyzeEOD,closeWindow} from './eod-analysis.mjs';
 import {prepareSync} from './public-sync.mjs';
@@ -5,6 +7,7 @@ const $=id=>document.getElementById(id),fmt=number;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const DATA='https://raw.githubusercontent.com/carterwaynereed/SATY/dashboard-data/';
 const ep=marketEndpoints(location.hostname),readMarket=createMarketReader();
+let exitSelections={},lastPoll=0;
 let bundle=null,shared=null,fetchFailed=false,busy=false,metadataAt=0;
 async function get(url){const r=await fetch(url,{cache:'no-store',credentials:'omit',signal:AbortSignal.timeout(15000)});if(!r.ok)throw Error(new URL(url,location.href).pathname+' HTTP '+r.status);return r.json();}
 const localKey=id=>'saty-eod-'+$('symbol').value+'-'+id;
@@ -18,6 +21,8 @@ function detector(id,result){
 }
 function render(){
   const s=bundle?.symbols?.[$('symbol').value];if(!s){$('status').textContent='DATA HOLD · Instrument unavailable.';return;}
+  const symbol=$('symbol').value;
+  const model=renderExitPanel($('exit-panel'),s,{selectedId:exitSelections[symbol],failed:fetchFailed,extended:bundle?.extended_hours?.[symbol],manual:shared?.by_symbol?.[symbol],onSelect:id=>{exitSelections[symbol]=id;render();}});drawExitChart($('exit-chart'),s,model);
   const h=snapshotHealth(s,Date.now(),fetchFailed);
   $('status').className='connection '+(h.tone==='hold'?'warning':'');
   $('status').textContent=h.state+' · '+h.reason+' · '+(s.health?.source?.feed_name||s.health?.source?.symbol||'source unavailable')+' · last 3m '+(s.health?.price_asof||'unknown');
@@ -43,7 +48,7 @@ async function metadata(){
   $('shadow-review').innerHTML=sh?.candidates?.length?sh.candidates.map(c=>'<p><b>'+esc(c.candidate_id)+'</b> · SHADOW ONLY · sessions n='+c.sessions+' · episodes n='+c.episodes_n+'</p><p>Baseline: '+esc(rateText(c.baseline))+'<br>Challenger: '+esc(rateText(c.challenger))+'</p><p>'+esc(c.promotion.reason)+'</p>').join(''):'No executable shadow sample yet · n=0. Registration never implies performance.';
   metadataAt=Date.now();
 }
-async function refresh(){if(busy)return;busy=true;try{
+async function refresh(){if(busy)return;lastPoll=Date.now();busy=true;try{
   // Prefer the same live endpoint. When old Site code lacks 1m, the new shared
   // bundle may supply it, but retains its own timestamps and stale gates.
   let live=null,reference=null;try{live=await readMarket(ep.market,{sameOrigin:ep.sameOrigin});}catch{}
@@ -75,4 +80,4 @@ $('prepare-sync').onclick=()=>{try{
   $('sync-status').textContent='Review the exact public JSON below, then submit the GitHub issue as the repo owner. Nothing is sent by preparing this preview.';
 }catch(e){$('sync-status').textContent=e.message;$('submit-sync').hidden=true;}};
 $('symbol').onchange=()=>{loadFields();render();refresh();};$('refresh').onclick=refresh;
-clock();showLessons();refresh();setInterval(clock,1000);setInterval(()=>{if(!document.hidden)refresh();},15000);
+clock();showLessons();refresh();setInterval(clock,1000);setInterval(()=>{if(!document.hidden&&shouldPoll(lastPoll,Date.now(),bundle?.symbols?.[$('symbol').value]?.session))refresh();},1000);

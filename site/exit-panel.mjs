@@ -1,0 +1,79 @@
+import {analyzeEOD} from './eod-analysis.mjs';
+import {sessionMode} from './session-mode.mjs';
+const finite=Number.isFinite,arr=x=>Array.isArray(x)?x:[];
+const money=x=>finite(x)?x.toFixed(2):'—';
+const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const distance=(level,price)=>finite(level)&&finite(price)&&price>0?`${level-price>=0?'+':'−'}$${money(Math.abs(level-price))} (${((level/price-1)*100).toFixed(2)}%)`:'unavailable';
+export function replayStat(target,snapshot){
+ const p=target?.probability,n=p?.n??0,interval=p?.interval;
+ // Use only the engine's measured exact-cell event with its chronology/feed gates.
+ if(n<20||!finite(p?.display_probability)||snapshot?.health?.source?.baseline_compatible!==true||!Array.isArray(interval)||interval.length!==2||!interval.every(finite))return `Replay rate withheld · n=${n}. ${p?.reason||'No matching measured event.'}`;
+ return `${p.event} · ${(p.display_probability*100).toFixed(0)}%, n=${n}; Wilson 95% ${interval.map(x=>(x*100).toFixed(0)+'%').join('–')} · DEVELOPMENT (correlated sessions).`;
+}
+export function exitModel(snapshot,{selectedId,now=Date.now(),manual=null,failed=false}={}){
+ const s=snapshot,m=s?.market??{},price=m.last,atr=m.atr14,bars=arr(s?.bars),last=bars.at(-1),previous=bars.at(-2),mode=sessionMode(now,s?.session);
+ const candidates=arr(s?.signals).filter(x=>finite(x.entry)&&finite(x.stop)&&!['CANCELLED','PENDING_ENTRY','EXPIRED'].includes(x.status));
+ const setup=candidates.find(x=>x.id===selectedId)??candidates.filter(x=>x.status==='TRACKING').at(-1)??candidates.at(-1);
+ const live=!failed&&s?.health?.state==='CURRENT'&&mode.mode==='REGULAR'&&s?.session?.date===mode.day&&now-Date.parse(s?.health?.price_asof)<=225000&&now>=Date.parse(s?.health?.price_asof);
+ let reference=!live;
+ if(!setup||!finite(price)||!(atr>0))return {status:failed?'DATA HOLD':'NO ACTIVE SETUP',tone:'neutral',reference:true,candidates,setup,targets:[],checks:[],lines:[],action:'Select a confirmed replay setup when one is available. No position or order is tracked.'};
+ reference=reference||setup.status!=='TRACKING';
+ const side=setup.side==='LONG'?1:-1,after=bars.filter(b=>Date.parse(b.time)>=Date.parse(setup.entry_at)&&Date.parse(b.time)+180000<=now);
+ const originalHit=after.some(b=>side===1?b.low<=setup.stop:b.high>=setup.stop);
+ const trigger=arr(s.levels).find(x=>x.label===(side===1?'+23.6':'-23.6'))?.price;
+ const ribbon3=s.ribbon?.ema34,ribbon10=s.ribbon?.trend10?.[34];
+ const trendKnown=[-1,1].includes(arr(s.evidence_weights?.features).find(x=>x.id==='ribbon10')?.direction)&&finite(ribbon10);
+ const invalidations=[{label:'Original stop',price:setup.stop},{label:'Back through trigger',price:trigger},{label:'Lost 3m ribbon (34 EMA)',price:ribbon3},...(trendKnown?[{label:'Lost 10m ribbon (34 EMA)',price:ribbon10}]:[])].filter(x=>finite(x.price));
+ const breached=invalidations.filter(x=>side*(price-x.price)<0);
+ const stop=invalidations.filter(x=>side*(price-x.price)>=0).sort((a,b)=>side*(b.price-a.price))[0]??invalidations[0];
+ // Target selected before this candle, so a just-touched level is not skipped.
+ const anchor=previous?.close??price;
+ const eligible=arr(s.levels).filter(x=>finite(x.price)&&Math.abs(x.multiple??parseFloat(x.label)/100)<=1&&side*(x.price-setup.entry)>0).sort((a,b)=>side*(a.price-b.price));
+ const target=eligible.find(x=>side*(x.price-anchor)>0)??eligible.find(x=>side*(x.price-price)>0);
+ const targets=target?eligible.filter(x=>side*(x.price-target.price)>=0).slice(0,3):[];
+ const touched=target&&last&&side*(side===1?last.high-target.price:last.low-target.price)>=0;
+ const width=b=>b&&finite(b.ema8)&&finite(b.ema34)?Math.abs(b.ema8-b.ema34):null;
+ const w=width(last),pw=width(previous),flat=finite(w)&&finite(pw)?w<=.03*atr||w<pw*.8:null;
+ const phase=last?.phase,old=previous?.phase;
+ const phaseBack=finite(phase)&&finite(old)?side*old>=60&&side*phase<60||side*old>0&&side*phase<=0:null;
+ const session={...s.session,daily_atr:atr},three=analyzeEOD(bars,3,session,now),one=analyzeEOD(s.one_minute_bars,1,session,now);
+ const divergence=result=>result.state==='CURRENT'?result.divergence.some(x=>x.type===(side===1?'BEARISH':'BULLISH')):null;
+ const oneFresh=s.one_minute_health?.state==='CURRENT'&&now-Date.parse(s.one_minute_health.price_asof)<=85000;
+ const vwap=m.vwap,lostVWAP=finite(vwap)?side*(price-vwap)<0:null;
+ const manualAge=now-Date.parse(manual?.asof),manualValid=manual?.symbol===m.symbol&&manualAge>=0&&manualAge<=15*60000&&manual?.method&&manual?.expiry_scope;
+ const power=mode.minute>=930&&mode.minute<960&&mode.mode==='REGULAR';
+ const mp=manualValid?manual.max_pain?.spot:null,nodes=manualValid?arr(manual.gex?.nodes).filter(x=>finite(x.gamma)&&x.gamma<0&&finite(x.strike)):[];
+ const eye=nodes.sort((a,b)=>a.gamma-b.gamma)[0]?.strike;
+ const checks=[
+  ['Within 0.1 ATR of next target',target?Math.abs(target.price-price)<=.1*atr:null],
+  ['3m ribbon flattening / compressing',flat],
+  ['Phase leaving ±60 extreme or crossing back through zero',phaseBack],
+  ['1m momentum divergence',oneFresh?divergence(one):null],
+  ['3m momentum divergence',divergence(three)],
+  ['Losing session VWAP',lostVWAP],
+  ['After 15:30: near max-pain pull',power&&finite(mp)?Math.abs(mp-price)<=.1*atr:null],
+  ['After 15:30: near largest negative gamma node',power&&finite(eye)?Math.abs(eye-price)<=.1*atr:null]
+ ].map(([label,met])=>({label,met}));
+ let status=originalHit?'STOP HIT':breached.length?'EXIT / TAKE PROFIT':touched?'EXIT / TAKE PROFIT':checks.some(x=>x.met===true)?'GET READY TO EXIT':'HOLD';
+ const tone=originalHit||status==='EXIT / TAKE PROFIT'?'red':status==='HOLD'?'green':'amber';
+ const measured=arr(setup.targets).find(t=>t.price===target?.price);
+ const action=originalHit?'Original stop was touched in replay; do not treat this setup as an open position.':breached.length?`Consider exiting: ${breached.map(x=>x.label).join(', ')} breached on a confirmed close.`:target?`Consider trimming half at ${target.label}% ATR (${distance(target.price,price)}), then review a trailing stop at ${stop?.label??'original stop'} $${money(stop?.price??setup.stop)}.`:'No higher ATR target within the 100% grid. Consider taking profit or reviewing the stop.';
+ return {status:reference?(failed||s?.health?.state==='UNAVAILABLE'||s?.health?.state==='STALE'?'DATA HOLD':'REFERENCE · '+status):status,tone:reference?'neutral':tone,reference,candidates,setup,price,atr,targets,stop,invalidations,checks,atr_used:finite(m.day_high)&&finite(m.day_low)?(m.day_high-m.day_low)/atr:null,action:(reference?'Historical/reference only. ':'')+action,stats:replayStat(measured,s),lines:[...targets.map(t=>({...t,exitRole:'target'})),...(stop?[{...stop,exitRole:'stop'}]:[])]};
+}
+export function renderExitPanel(root,snapshot,options={}){
+ const x=exitModel(snapshot,options),raw=options.extended,extended=raw?.state==='CURRENT'&&(options.failed||(options.now??Date.now())-Date.parse(raw.price_asof)>125000)?{state:'DATA HOLD',reason:'Extended feed failed or confirmed bar became stale'}:raw,mode=sessionMode(options.now??Date.now(),snapshot?.session);
+ const extMode=mode.mode==='EXTENDED HOURS';
+ const ext=extMode?`<div class="extended-card"><b>EXTENDED HOURS · ${esc(extended?.state??'DATA HOLD')}</b><p>${esc(extended?.reason??'No confirmed extended bars available.')}</p>${extended?.state==='CURRENT'?`<p>${esc(extended.period)} · $${money(extended.price)} · confirmed ${esc(extended.price_asof)}</p><p>Overnight / extended high $${money(extended.high)} · low $${money(extended.low)}. ${esc(extended.range_note)}</p><p>Gap preview ${distance(extended.price,extended.gap_basis)} versus last regular close $${money(extended.gap_basis)} · next open ${esc(extended.next_open??'calendar unavailable')}. Preview only.</p><div class="chip-row">${arr(extended.levels).filter(l=>['-100','-61.8','-38.2','-23.6','0','+23.6','+38.2','+61.8','+100'].includes(l.label)).map(l=>`<span class="tag">${esc(l.label)}% $${money(l.price)} · ${distance(l.price,extended.price)}</span>`).join('')}</div>`:''}<small>60-second refresh · no RTH stats, WAIT ledger, or challenger contribution. SPX is closed.</small></div>`:'';
+ root.innerHTML=`${ext}<div class="panel-head"><h2>Exit panel <small>· signal only</small></h2><span class="exit-badge ${x.tone}" role="status">${esc(x.status)}</span></div><label class="exit-select">Setup <select aria-label="Exit setup"><option value="">Auto · latest tracking setup</option>${x.candidates.map(s=>`<option value="${esc(s.id)}" ${s.id===options.selectedId?'selected':''}>${esc(s.side+' · '+s.setup+' · '+s.decision_at+' · '+s.status)}</option>`).join('')}</select></label>${x.setup?`<p class="fine">${esc(x.setup.side)} · ${esc(x.setup.setup)} · replay entry $${money(x.setup.entry)} · ${esc(x.setup.status)}. No actual position is tracked.</p>`:''}<div class="exit-targets">${x.targets.map(t=>`<div><small>Next ${esc(t.label)}% ATR</small><strong>$${money(t.price)}</strong><small>${distance(t.price,x.price)}</small></div>`).join('')}${x.stop?`<div><small>Invalidation: ${esc(x.stop.label)}</small><strong>$${money(x.stop.price)}</strong><small>${distance(x.stop.price,x.price)}</small></div>`:''}</div>${finite(x.atr_used)?`<label>Day range used ${(x.atr_used*100).toFixed(0)}% of daily ATR <progress max="100" value="${Math.min(100,x.atr_used*100)}"></progress></label>`:''}<div class="exit-checks">${x.checks.map(c=>`<span class="${c.met?'met':''}">${c.met===true?'✓ MET':c.met===false?'○ NOT MET':'— UNAVAILABLE'} · ${esc(c.label)}</span>`).join('')}</div><p class="exit-action">${esc(x.action)}</p><p class="fine">${esc(x.stats??'No measured exit sample · n=0.')} Exit cues are unvalidated context, not outcome probabilities. Distances are underlying dollars / index points, not option premium.</p>`;
+ root.querySelector('select').onchange=e=>options.onSelect?.(e.target.value);
+ return x;
+}
+// Small shared EOD chart: confirmed RTH candles, labeled stop and target lines.
+export function drawExitChart(canvas,snapshot,model){
+ const bars=arr(snapshot?.bars).slice(-100);if(!bars.length)return;
+ const ctx=canvas.getContext('2d'),w=canvas.width=800,h=canvas.height=220;
+ const values=[...bars.flatMap(b=>[b.high,b.low]),...model.lines.map(l=>l.price)].filter(finite),low=Math.min(...values),high=Math.max(...values),range=high-low||1,y=p=>15+(high-p)/range*(h-35);
+ ctx.clearRect(0,0,w,h);bars.forEach((b,i)=>{ctx.strokeStyle=b.close>=b.open?'#bce58c':'#eb9b91';ctx.beginPath();ctx.moveTo(5+i*650/bars.length,y(b.low));ctx.lineTo(5+i*650/bars.length,y(b.high));ctx.stroke();});
+ for(const l of model.lines){ctx.strokeStyle=ctx.fillStyle=l.exitRole==='stop'?'#ff9f94':'#c2ed88';ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(0,y(l.price));ctx.lineTo(660,y(l.price));ctx.stroke();ctx.font='12px sans-serif';ctx.fillText(`${l.exitRole.toUpperCase()} ${l.label} ${money(l.price)}`,665,y(l.price)+4);}ctx.setLineDash([]);
+ canvas.setAttribute('aria-label',`Confirmed RTH chart. ${model.lines.map(l=>l.exitRole+' '+l.label+' '+money(l.price)).join('; ')}`);
+}
