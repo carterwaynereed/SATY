@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "name": "Saty 21 Pullback + VIX",
+  "version": "saty-21-pullback-vix-1.0",
+  "registered_at": "2026-10-24T03:11:42.255300+00:00",
+  "baseline_commit": "000acd36297a71fdd5a8e327abd5803b633d9f91",
+  "status": "SHADOW_ONLY",
+  "hidden_from_ui": true,
+  "eligible_for_execution": false,
+  "automatic_promotion": false,
+  "rules": {
+    "stop_atr": 0.25,
+    "target_atr": 0.5,
+    "max_entries": 3,
+    "cooldown_minutes_after_loss": 30,
+    "cutoff_et": "15:00 exclusive",
+    "time_exit_et": "15:55 or exchange close minus five minutes",
+    "short_vix": "above prior-completed daily EMA21",
+    "missing_overnight": "conservative 10:00 start; SPX has no extended session"
+  },
+  "reported_walk_forward": {
+    "origin": "User-supplied five-week OOS aggregate; not independently reproduced",
+    "n": 109,
+    "win_rate": 0.54,
+    "wilson_95": [
+      0.45,
+      0.63
+    ],
+    "return_pct": 7.23,
+    "profit_factor": 1.4,
+    "independently_reproduced": false,
+    "limitations": "Raw trades, weeks, symbols, costs and weighting not supplied. Never pooled with app measurements."
+  }
+}
