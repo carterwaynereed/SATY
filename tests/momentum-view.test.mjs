@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {momentumView,momentumCardHTML,watchView,statsView,priceText,currencyText} from '../site/momentum-view.mjs';
+import {momentumView,momentumCardHTML,watchView,watchHTML,statsView,priceText,currencyText} from '../site/momentum-view.mjs';
 const now=Date.parse('2026-10-26T14:06:05Z');
 const snapshot={health:{state:'CURRENT',price_asof:'2026-10-26T14:06:00Z'},session:{date:'2026-10-26',open:'2026-10-26T13:30:00Z',close:'2026-10-26T20:00:00Z'},market:{last:601},radar:{score:65,lean:1,highlight:true}};
 const signal={symbol:'SPY',direction:'CALL',side:1,entry:600,target:{price:602.36},stop:597,structural_stop:{price:598},next_level:{price:602,label:'+61.8'},entry_at:'2026-10-26T14:03:00Z',status:'HOLD',state:'TRACKING',reason:'The defended level is holding.',levels_covered:1};
@@ -47,7 +47,7 @@ test('next-day and missing feeds never turn the optional second watch into a liv
   const x=fixture();x.momentum.signal=null;x.momentum.second_signal={symbol:'AAPL',side:-1,setup:'Pre-market rejection',watch_only:true};const v=momentumView(x,{now});assert.equal(v.issued,0);assert.equal(v.signal,null);assert.match(v.secondText,/research only/);assert.equal(v.title,'Waiting for a clear move.');
 });
 test('watch strip ranks scores but never highlights stale observations',()=>{
-  const x=fixture();x.symbols.AAPL={...structuredClone(snapshot),radar:{score:85,lean:-1,highlight:true}};let rows=watchView(x,{now});assert.equal(rows[0].symbol,'AAPL');assert.equal(rows[0].highlight,true);assert.equal(rows.length,4);rows=watchView(x,{now,failed:true});assert.equal(rows.some(r=>r.highlight),false);
+  const x=fixture();x.symbols.AAPL={...structuredClone(snapshot),radar:{score:85,lean:-1,highlight:true}};let rows=watchView(x,{now});assert.equal(rows[0].symbol,'AAPL');assert.equal(rows[0].highlight,true);assert.equal(rows.length,4);assert.equal(rows[0].directionTone,'bear');assert.equal(rows.find(r=>r.symbol==='SPY').directionTone,'bull');assert.equal(rows.find(r=>r.symbol==='SPX').directionTone,'inactive');assert.match(watchHTML(rows),/watch-lean bear/);rows=watchView(x,{now,failed:true});assert.equal(rows.some(r=>r.highlight),false);assert.ok(rows.every(r=>r.directionTone==='inactive'));
 });
 test('small samples and unavailable evidence never become a headline probability',()=>{
   assert.equal(statsView({n:0}).target,'Not enough data');assert.equal(statsView({n:19,win_rate:1}).target,'Not enough data');assert.equal(statsView({n:20,wins:16,win_rate:.8,closed_n:20,closed_green_rate:.5,profit_factor:1.2,interval:[.58,.92]}).target,'80%');assert.equal(statsView({n:20,closed_n:20,wins:16,win_rate:.8,closed_green_rate:.5}).green,'50%');assert.equal(statsView({n:20,closed_n:2,wins:16,win_rate:.8,closed_green_rate:.5}).green,'Not enough data');assert.equal(statsView({n:20,win_rate:1,state:'DATA HOLD'}).target,'Unavailable');assert.equal(statsView({n:0,unresolved_n:2}).unresolved,2);

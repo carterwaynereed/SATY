@@ -1,5 +1,5 @@
 import {ALERT_PROFILES,metricText,outcomeStats} from './outcome-stats.mjs';
-import {chartLevels,drawChartOverlays} from './chart-overlays.mjs';
+import {chartLevels,drawChartOverlays,chartPalette} from './chart-overlays.mjs';
 import {analyzeEOD} from './eod-analysis.mjs';
 import {sessionMode} from './session-mode.mjs';
 const finite=Number.isFinite,arr=x=>Array.isArray(x)?x:[];
@@ -144,8 +144,8 @@ export function drawExitChart(canvas,snapshot,model,{all=false}={}){
  if(!canvas)return;const bars=arr(snapshot?.bars).slice(-100);if(!bars.length)return;
  const rect=canvas.getBoundingClientRect(),w=rect.width||800,h=rect.height||220,dpr=Math.min(globalThis.devicePixelRatio||1,2);canvas.width=w*dpr;canvas.height=h*dpr;const ctx=canvas.getContext('2d');ctx.scale(dpr,dpr);const right=w-Math.min(132,w*.38),levels=chartLevels(snapshot,model,{all});
  const values=[...bars.flatMap(b=>[b.high,b.low]),...levels.filter(l=>l.exitRole==='stop'||l.exitRole==='target').map(l=>l.price)].filter(finite),low=Math.min(...values),high=Math.max(...values),range=high-low||1,y=p=>15+(high-p)/range*(h-35);
- const light=globalThis.document?.body?.classList.contains('dashboard')||globalThis.document?.documentElement?.style.colorScheme==='light';
- ctx.clearRect(0,0,w,h);bars.forEach((b,i)=>{ctx.strokeStyle=b.close>=b.open?(light?'#16754d':'#bce58c'):(light?'#b54843':'#eb9b91');ctx.beginPath();ctx.moveTo(5+i*(right-10)/bars.length,y(b.low));ctx.lineTo(5+i*(right-10)/bars.length,y(b.high));ctx.stroke();});
+ const palette=chartPalette(canvas);
+ ctx.clearRect(0,0,w,h);bars.forEach((b,i)=>{ctx.strokeStyle=b.close>=b.open?palette.bull:palette.bear;ctx.beginPath();ctx.moveTo(5+i*(right-10)/bars.length,y(b.low));ctx.lineTo(5+i*(right-10)/bars.length,y(b.high));ctx.stroke();});
  drawChartOverlays(ctx,levels,{left:3,right,width:w,top:10,bottom:h-15,y});
  canvas.setAttribute('aria-label',`Confirmed RTH chart. ${levels.map(l=>l.exitRole+' '+l.label+' '+money(l.price)).join('; ')}`);
 }

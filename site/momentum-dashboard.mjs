@@ -10,7 +10,7 @@ export function renderMomentumDashboard(bundle,{now=Date.now(),failed=false,load
   const currentSession=Object.values(bundle?.symbols??{}).find(s=>s.session?.date===easternDay(now))?.session??bundle?.symbols?.[selected]?.session;
   const v=momentumView(bundle,{now,failed,loading}),mode=sessionMode(now,currentSession);
   put('today-label',dayText(easternDay(now)).toUpperCase());
-  const cardHTML=momentumCardHTML(v);if($('momentum-card').innerHTML!==cardHTML)$('momentum-card').innerHTML=cardHTML;$('momentum-card').dataset.side=v.direction??'';
+  const cardHTML=momentumCardHTML(v);if($('momentum-card').innerHTML!==cardHTML)$('momentum-card').innerHTML=cardHTML;$('momentum-card').dataset.side=v.direction??'';$('momentum-card').dataset.hasSignal=String(!!v.signal);$('momentum-card').dataset.reference=String(v.reference||!v.fresh||['WAIT','DATA HOLD','CONNECTING'].includes(v.status));
   const focusedTicker=document.activeElement?.dataset?.ticker,stripHTML=watchHTML(watchView(bundle,{selected,now,failed}));if($('watch-strip').innerHTML!==stripHTML)$('watch-strip').innerHTML=stripHTML;
   for(const button of $('watch-strip').querySelectorAll('[data-ticker]'))button.onclick=()=>onSelect(button.dataset.ticker);
   if(focusedTicker&&TICKERS.includes(focusedTicker))$('watch-strip').querySelector(`[data-ticker="${focusedTicker}"]`)?.focus({preventScroll:true});

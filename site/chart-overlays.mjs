@@ -1,5 +1,12 @@
 // Canvas-only price-axis overlays shared by main and EOD charts.
 const finite=Number.isFinite;
+// Canvas colors follow the same semantic tokens as the surrounding dashboard.
+// The dark defaults also support offline rendering/tests without a DOM.
+export function chartPalette(element=globalThis.document?.documentElement){
+ const style=element&&globalThis.getComputedStyle?globalThis.getComputedStyle(element):null;
+ const color=(name,fallback)=>style?.getPropertyValue(name).trim()||fallback;
+ return {grid:color('--chart-grid','#334459'),label:color('--chart-label','#a8b6c7'),bull:color('--green','#68e0a5'),bear:color('--red','#ff8d99'),info:color('--blue','#7ad9ef'),vwap:color('--purple','#c9b4ff'),neutral:color('--muted','#a8b6c7'),panel:color('--panel','#141d29')};
+}
 export function chartLevels(snapshot,model,{all=false,extra=[]}={}){
  const side=model?.setup?.side==='LONG'?1:model?.setup?.side==='SHORT'?-1:0;
  const targets=(model?.targets??[]).filter(t=>finite(t.price));
@@ -21,7 +28,7 @@ export function stackPriceTags(items,top,bottom,gap=20){
  return sorted.map(x=>({...x,spacing}));
 }
 export function drawChartOverlays(ctx,levels,{left=3,right,width,top,bottom,y}){
- const roles={target:{color:'#a9d87d',prefix:'T'},stop:{color:'#f09b94',prefix:'STOP'},trigger:{color:'#aeb4bc',prefix:'TRG'},level:{color:'#929c99',prefix:'LVL'}};
+ const palette=chartPalette(ctx.canvas),roles={target:{color:palette.bull,prefix:'T'},stop:{color:palette.bear,prefix:'STOP'},trigger:{color:palette.neutral,prefix:'TRG'},level:{color:palette.neutral,prefix:'LVL'}};
  const visible=levels.filter(l=>finite(l.price)&&y(l.price)>=top&&y(l.price)<=bottom);
  const tags=stackPriceTags(visible.map(l=>({...l,lineY:y(l.price)})),top+10,bottom-10);
  ctx.save();ctx.lineWidth=.8;ctx.setLineDash([4,5]);ctx.globalAlpha=.3;
@@ -31,7 +38,7 @@ export function drawChartOverlays(ctx,levels,{left=3,right,width,top,bottom,y}){
  for(const l of tags){const style=roles[l.exitRole]??roles.level,h=Math.max(1,Math.min(18,l.spacing-2)),font=Math.max(7,Math.min(10,h-4));
   // Leaders stay in the reserved price-axis gutter; text never enters candles.
   ctx.strokeStyle=style.color;ctx.globalAlpha=.5;ctx.beginPath();ctx.moveTo(right,l.lineY);ctx.lineTo(axisX,l.tagY);ctx.stroke();ctx.globalAlpha=1;
-  ctx.fillStyle='#18201e';ctx.beginPath();ctx.roundRect(axisX,l.tagY-h/2,pillW,h,Math.min(5,h/2));ctx.fill();
+  ctx.fillStyle=palette.panel;ctx.beginPath();ctx.roundRect(axisX,l.tagY-h/2,pillW,h,Math.min(5,h/2));ctx.fill();
   ctx.strokeStyle=style.color;ctx.globalAlpha=.6;ctx.stroke();ctx.globalAlpha=1;ctx.fillStyle=style.color;ctx.font=`${font}px system-ui`;ctx.textBaseline='middle';
   const label=l.exitRole==='stop'?'STOP':`${style.prefix} ${l.label}`;ctx.fillText(`${label} ${l.price.toFixed(2)}`,axisX+5,l.tagY,pillW-9);
  }
