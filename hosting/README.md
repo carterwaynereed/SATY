@@ -56,3 +56,42 @@ The new evidence bundle contains 34 same-feed development sessions for every tic
 `node --test tests/*.test.mjs` covers routes, private storage, live-feed parsing/cache behavior, evidence math, freshness, target gates and Python-to-JS engine parity. Python tests cover calendar/causality, evidence reconstruction and durable observations. The committed `docs/saty-plus-live-preview.jpg` is an actual QA interface capture, not a promise that its displayed values are current.
 
 `verify-live.mjs` is the optional read-only authenticated check. Start it with a PTY and supply the freshly obtained Sites bypass credential through hidden stdin. It derives the scoped journal key and reports a private journal count/checksum without exposing journal rows or credentials. It never writes the snapshot. `node hosting/verify-public.mjs` checks anonymous access, exact-origin CORS, 304 replies, private-route denial and deployed asset identity. Add `--require-pages` after Pages is enabled. A market check distinguishes fresh confirmed bars from dated or closed-session reference responses; opening the page alone is insufficient verification.
+
+## Exit panel and overnight-light
+
+The shared `site/exit-panel.mjs` shows the selected ticker's latest tracking replay
+setup, with a selector for older observations. These are signal-only references,
+not tracked brokerage positions. Underlying-price targets use the directional
+ATR grid through 100%; the just-completed bar cannot silently skip a touched
+level. Original-stop touches take priority over target touches. A confirmed
+close through the trigger or available 3m/10m 34 EMA marks invalidation. Closed,
+stale and failed feeds never show a live green HOLD. Stop/target lines are drawn
+on the main chart and a compact EOD chart.
+
+Amber context cues use distance <=0.1 daily ATR, ribbon width <=0.03 daily ATR or
+20% contraction, phase leaving +/-60 or crossing zero against the setup, the
+existing confirmed pivot/phase divergence detector, and adverse RTH VWAP.
+After 15:30 ET, same-ticker manual max-pain and the largest negative gamma node
+can warn within 0.1 ATR only when observed within 15 minutes. Missing data is
+UNAVAILABLE, never a false negative. These thresholds are unvalidated display
+heuristics and do not alter the frozen entry engine. Frequencies are shown only
+for an exact selected replay target with the engine's existing n>=20, chronology,
+feed-match and Wilson gates. No separate exit-rule probability is claimed.
+
+`lib/extended-hours.mjs` reads a distinct public TradingView `session: extended`
+1m series plus regular daily reference history for SPY/AAPL/GOOGL. SPX stays
+closed. Current-date confirmed extended bars must be <=125 seconds old;
+unsupported/delayed/missing bars yield DATA HOLD. Premarket levels use completed
+prior daily bars, not yesterday's ATR grid. The overnight range covers observed
+prior-session after-hours plus current premarket; partial coverage is labeled.
+After-hours levels retain today's grid, and gap preview uses the confirmed final
+RTH close when available. A gap preview is a price difference, not a forecast.
+
+The response adds an independent `extended_hours` map beside `symbols`; it never
+passes extended bars to `buildLiveSnapshot`, recording, WAIT decisions, evidence,
+or shadow promotion. Extended history is cached in memory/coalesced for 60s;
+it is not written into the private journal or the regular durable market cache.
+The browser polls at 15s during RTH, 60s during 04:00–09:30 / 16:00–20:00 ET, and
+pauses automatically outside 04:00–20:00 and on weekends. Initial/manual reads
+remain possible. The exchange calendar gates server reads, including holidays.
+No GitHub Actions schedule was added or expanded.
