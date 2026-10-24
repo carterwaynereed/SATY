@@ -40,7 +40,7 @@ test('market request fans out to four independent tickers and shares concurrent 
   const x=setup();const [a,b]=await Promise.all([x.get(x.bucket),x.get(x.bucket)]);
   assert.deepEqual(Object.keys(a.symbols).sort(),[...SYMBOLS].sort());assert.equal(x.calls.length,4);assert.deepEqual(a,b);
   for(const symbol of SYMBOLS){const s=a.symbols[symbol];assert.equal(s.market.symbol,symbol);assert.equal(s.health.source.baseline_compatible,true);assert.equal(s.health.state,'CURRENT');assert.equal(s.evidence_weights.in_session,true);assert.equal(s.evidence_weights.call+s.evidence_weights.put+s.evidence_weights.wait,100);assert.ok(s.evidence_weights.call>0||s.evidence_weights.put>0);}
-  assert.deepEqual(x.bucket.writes,[MARKET_KEY]);assert.equal(MARKET_KEY,'saty-plus/market-v4-softcap.json');
+  assert.deepEqual(x.bucket.writes,[MARKET_KEY]);assert.equal(MARKET_KEY,'saty-plus/market-v5-dual-setups.json');
 });
 
 test('cache coalesces polling and refreshes on a completed 1m boundary plus five seconds',async()=>{

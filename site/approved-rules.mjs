@@ -4,7 +4,7 @@ export function scoreDirection(weights){return weights?.call>=60?'CALL':weights?
 const sign=d=>d==='CALL'?1:d==='PUT'?-1:0;
 const finite=Number.isFinite;
 export function entryAllowance(entries,radar,net,known=true){return entries<3||entries===3&&known&&Number.isFinite(radar)&&radar>=55&&net>0;}
-export function replayApproved(rows,levels,session,{runner=true,now=Date.now(),minutes=[]}={}){
+export function replayApproved(rows,levels,session,{runner=true,now=Date.now(),minutes=[],secondary=null}={}){
  const close=Date.parse(session.close);
  // Time exit is five minutes before the actual calendar close (15:55 normally).
  const end=close-300000,sessionOpen=Date.parse(session.open);
@@ -19,9 +19,9 @@ export function replayApproved(rows,levels,session,{runner=true,now=Date.now(),m
   if(!contiguous){pending=null;if(position){position.status='UNRESOLVED';position.exit_reason='Missing RTH bar; no modeled fill';position=null;}}
   if(pending){
    if(start===pending.at&&start<end&&r.et_open<'15:00'&&(!cooldownUntil||start>=cooldownUntil)&&entryAllowance(entries,pending.radar_score,netRealized,!trades.some(t=>t.status==='UNRESOLVED'))){
-    const dir=pending.side,stop=pending.stop,target=nextTarget(dir,r.open);
+    const dir=pending.side,isRetest=pending.setup_id==='TRIGGER_RETEST',stop=isRetest?r.open-dir*.20*pending.atr:pending.stop,target=isRetest?{label:'Retest +0.08 ATR',price:r.open+dir*.08*pending.atr,multiple:null}:nextTarget(dir,r.open);
     if(finite(stop)&&dir*(r.open-stop)>0&&target){
-     position={id:[APPROVED_VERSION,r.symbol,session.date,pending.decision_at].join('|'),side:dir,entry:r.open,entry_at:r.bar_open,decision_at:pending.decision_at,stop,original_stop:stop,target,trigger:pending.trigger,runner:false,status:'TRACKING',setup:pending.setup,extensions:[],modeled:true};trades.push(position);entries++;lastEvent={kind:'ENTRY',time:r.bar_open,price:r.open};
+     position={id:(secondary?[secondary.suite_version,r.symbol,session.date,pending.setup_id,secondary.runner?'retest-runner':'retest-fixed',pending.decision_at]:[APPROVED_VERSION,r.symbol,session.date,pending.decision_at]).join('|'),side:dir,entry:r.open,entry_at:r.bar_open,decision_at:pending.decision_at,stop,original_stop:stop,target,setup_id:isRetest?'TRIGGER_RETEST':'MAIN',entry_atr:pending.atr??r.atr14,runner_permitted:isRetest?secondary?.runner===true:runner,trigger:pending.trigger,runner:false,status:'TRACKING',setup:pending.setup,extensions:[],modeled:true};trades.push(position);entries++;lastEvent={kind:'ENTRY',time:r.bar_open,price:r.open};
     }
    }
    pending=null;
@@ -45,12 +45,12 @@ export function replayApproved(rows,levels,session,{runner=true,now=Date.now(),m
     const prior=bars[i-1]??r,target=p.target,hit=p.side===1?b.high>=target.price:b.low<=target.price;
     const support=[{label:'3m ribbon',price:r.ribbon3_stop},{label:'10m ribbon',price:r.ribbon10_stop},...(finite(p.trigger)&&p.side*(p.entry-p.trigger)>0?[{label:'trigger',price:p.trigger}]:[])].filter(l=>finite(l.price));
     const lost=support.find(l=>p.side*(r.close-l.price)<0);
-    if(lost)exit(r.close,at,'Lost '+lost.label+' on close',i);
-    else if(side===-p.side)exit(r.close,at,'Opposite flip',i);
+    if(p.setup_id!=='TRIGGER_RETEST'&&lost)exit(r.close,at,'Lost '+lost.label+' on close',i);
+    else if(p.setup_id!=='TRIGGER_RETEST'&&side===-p.side)exit(r.close,at,'Opposite flip',i);
     else if(hit){
-     const following=nextTarget(p.side,target.price),agrees=prior.row_directions?.[0]===p.side,phase=p.side*prior.phase;
-     if(runner&&agrees&&finite(phase)&&phase<80&&Math.abs(target.multiple)<=1&&following){
-      p.stop=p.side===1?Math.max(p.stop,target.price-.1*r.atr14):Math.min(p.stop,target.price+.1*r.atr14);p.runner=true;p.target=following;p.extensions.push({at:r.time,touched:target.price,stop:p.stop,next:following.price});lastEvent={kind:'RUNNER',time:r.time,price:target.price};
+     const isRetest=p.setup_id==='TRIGGER_RETEST',following=isRetest?(!p.runner?{label:'Retest second +0.08 ATR leg',price:target.price+p.side*.08*p.entry_atr,multiple:null}:null):nextTarget(p.side,target.price),agrees=prior.row_directions?.[0]===p.side,phase=p.side*prior.phase;
+     if(p.runner_permitted&&agrees&&(isRetest||finite(phase)&&phase<80&&Math.abs(target.multiple)<=1)&&following){
+      p.stop=p.side===1?Math.max(p.stop,target.price-(isRetest?.05*p.entry_atr:.1*r.atr14)):Math.min(p.stop,target.price+(isRetest?.05*p.entry_atr:.1*r.atr14));p.runner=true;p.target=following;p.extensions.push({at:r.time,touched:target.price,stop:p.stop,next:following.price});lastEvent={kind:'RUNNER',time:r.time,price:target.price};
      }else exit(p.side*(b.open-target.price)>=0?b.open:target.price,at,'ATR target',i);
     }
    }
@@ -58,9 +58,13 @@ export function replayApproved(rows,levels,session,{runner=true,now=Date.now(),m
   const direction=r.score_direction??scoreDirection(r.evidence_score),flip=direction!=='WAIT'&&direction!==previous;
   const allowed=contiguous&&flip&&!position&&entryAllowance(entries,r.radar?.score,netRealized,!trades.some(t=>t.status==='UNRESOLVED'))&&r.et_close<'15:00'&&at<end&&(!cooldownUntil||at>=cooldownUntil);
   if(allowed){const side=sign(direction),swing=bars.slice(Math.max(0,i-4),i+1),managed=r.managed_entry?.side===side?r.managed_entry:null;if(managed||swing.length===5){
-   pending={at,side,radar_score:r.radar?.score??null,decision_at:r.time,stop:managed?.stop??(side===1?Math.min(...swing.map(x=>x.low)):Math.max(...swing.map(x=>x.high))),trigger:levels.find(l=>l.label===(side===1?'+23.6':'-23.6'))?.price,setup:managed?.setup??'60% score flip · 5-bar swing'};
+   pending={at,side,setup_id:'MAIN',atr:r.atr14,radar_score:r.radar?.score??null,decision_at:r.time,stop:managed?.stop??(side===1?Math.min(...swing.map(x=>x.low)):Math.max(...swing.map(x=>x.high))),trigger:levels.find(l=>l.label===(side===1?'+23.6':'-23.6'))?.price,setup:managed?.setup??'60% score flip · 5-bar swing'};
   }}
-  decisions.push({time:r.time,decision:pending?direction:'WAIT',direction,entries,cooldown_until:cooldownUntil,position_id:position?.id??null,state:position?.runner?'RUNNER':position?'HOLD':pending?'NEXT_OPEN':'WAIT'});
+  const retest=secondary?.detect?.(bars,i,levels)??null;
+  if(!pending&&retest&&contiguous&&!position&&entryAllowance(entries,r.radar?.score,netRealized,!trades.some(t=>t.status==='UNRESOLVED'))&&r.et_close>='10:00'&&r.et_close<'15:00'&&at<end&&(!cooldownUntil||at>=cooldownUntil)){
+   pending={at,side:retest.side,setup_id:'TRIGGER_RETEST',atr:r.atr14,radar_score:r.radar?.score??null,decision_at:r.time,trigger:retest.trigger,setup:'TRIGGER RETEST'};
+  }
+  decisions.push({time:r.time,decision:pending?(pending.side===1?'CALL':'PUT'):'WAIT',setup_id:pending?.setup_id??position?.setup_id??null,retest_candidate:retest,main_candidate:flip?direction:null,direction,entries,cooldown_until:cooldownUntil,position_id:position?.id??null,state:position?.runner?'RUNNER':position?'HOLD':pending?'NEXT_OPEN':'WAIT'});
   previous=direction;
  }
  // At 15:55 a completed 1m candle may exist before the next 3m close.

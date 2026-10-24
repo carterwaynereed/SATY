@@ -11,7 +11,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 WORK = ROOT / '.dashboard-state'
 BRANCH = 'dashboard-data'
-PUBLIC_FILES = ('latest.json', 'evidence.json', 'uw.json', 'learning.json', 'market.json', 'tv-evidence.json', 'eod-review.json', 'health-alarms.json', 'changelog.json', 'challengers.jsonl', 'manual-inputs.json', 'decision-summary.json', 'shadow-evidence.json', 'policy-evidence.json')
+PUBLIC_FILES = ('latest.json', 'evidence.json', 'uw.json', 'learning.json', 'market.json', 'tv-evidence.json', 'eod-review.json', 'health-alarms.json', 'changelog.json', 'challengers.jsonl', 'manual-inputs.json', 'decision-summary.json', 'shadow-evidence.json', 'policy-evidence.json', 'retest-evidence.json')
 
 
 def git(*args, cwd=ROOT, check=True, capture=False):

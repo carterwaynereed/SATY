@@ -125,3 +125,20 @@ used. The same policy applies to both runner and no-runner variants. This is a
 new frozen comparison; prior reported week results stay labeled as the prior
 rules. The public cache uses `saty-plus/market-v4-softcap.json` to avoid serving
 old entry state. Private storage and audience remain unchanged.
+
+## TRIGGER RETEST companion setup
+
+`trigger-retest-1.0` is displayed alongside MAIN on both pages. The coordinated
+`saty-dual-setups-1.0` suite shares one position, the ticker-wide soft cap/P&L and
+cooldown; MAIN wins simultaneous-entry ties. Fixed target is default; a separate
+optional-runner scenario is measured and can be selected in the browser without
+mixing the scenarios' main/retest outcomes. The previous standalone main-policy
+challenger remains an explicitly separate research comparison.
+
+See [TRIGGER_RETEST](../docs/TRIGGER_RETEST.md) for exact conditions, stop/target,
+runner causality, evidence provenance and first-observed sample definitions.
+`retest-evidence.json` is persisted by the existing intraday/EOD jobs. Completed
+resolved sessions are memoized; no new schedule is added. The market cache is
+`saty-plus/market-v5-dual-setups.json`. The private journal binding/key/auth remain
+unchanged. The supplied 84% / n=64 result is recorded separately, not reproduced
+or treated as the app's live sample.
