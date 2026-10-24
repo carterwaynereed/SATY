@@ -33,6 +33,19 @@ def aware(value):
     assert ts.tzinfo is not None, f'Naive timestamp: {value}'
 
 
+def validate_payload(site):
+    # The archive is a separate page. Keep the actual home load lean while
+    # budgeting the complete archive plus freshly generated four-ticker data.
+    home_files = ('index.html', 'assets/momentum.css', 'momentum-dashboard.mjs',
+                  'momentum-view.mjs', 'uw-view.mjs', 'assets/app.js',
+                  'session-mode.mjs', 'outcome-stats.mjs')
+    home = sum((site / name).stat().st_size for name in home_files)
+    payload = sum(p.stat().st_size for p in site.rglob('*') if p.is_file())
+    assert home < 75_000, f'Momentum home assets exceeded 75 KB: {home} bytes'
+    assert payload < 850_000, f'Complete site and research archive exceeded 850 KB: {payload} bytes'
+    return payload, home
+
+
 def main():
     site = ROOT / 'site'
     latest = load(site / 'data/latest.json')
@@ -92,9 +105,8 @@ def main():
     assert (site / 'assets/styles.css').exists()
     assert not list(site.rglob('*.py')), 'Python source should not be in the deployed site'
     assert not list(site.rglob('node_modules')), 'No runtime dependencies belong in the static artifact'
-    payload = sum(p.stat().st_size for p in site.rglob('*') if p.is_file())
-    assert payload < 750_000, f'Static payload exceeded the 750 KB four-ticker/1m budget: {payload} bytes'
-    print(f'Public JSON, frozen source hashes and static payload validated ({payload:,} bytes).')
+    payload, home = validate_payload(site)
+    print(f'Public JSON, frozen source hashes and static payload validated ({payload:,} bytes; home {home:,} bytes).')
 
 
 if __name__ == '__main__':

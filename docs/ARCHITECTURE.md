@@ -1,6 +1,6 @@
 # Architecture and operating assumptions · 0.3
 
-The canonical source is SATY `main`; the existing Saty+ Site remains the home. Plain HTML/CSS/JS and canvas serve both the public home and Pages mirror. The home adds a dependency-free Worker. Public market access requires no login; the private paper journal has separate server authorization. Static asset validation enforces a 750 KB budget including four-ticker seed data. There are no broker or order endpoints.
+The canonical source is SATY `main`; the existing Saty+ Site remains the home. Plain HTML/CSS/JS and canvas serve both the public home and Pages mirror. The home adds a dependency-free Worker. Public market access requires no login; the private paper journal has separate server authorization. Static validation caps the complete artifact at 850 KB, including archived Details pages and generated four-ticker/research data. The initial Momentum Tracker HTML, CSS and JavaScript dependencies have their own 75 KB cap. These are uncompressed asset budgets, separate from API responses. There are no broker or order endpoints.
 
 ## Home live path
 
