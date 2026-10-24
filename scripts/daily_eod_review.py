@@ -123,6 +123,9 @@ def review(data,state,now):
         bars=[b for b in bars if dayof(b['time'])==date and all(finite(b.get(k)) for k in ('high','low','close'))]
         source=(archive or {}).get('source',snap.get('health',{}).get('source',{})).get('feed_fingerprint')
         own=[r for r in unique.values() if r['symbol']==symbol and r.get('session_date')==date and (not source or r.get('source_fingerprint')==source)]
+        # Versioned policies must not double-count one bar across the cutover.
+        if any(r.get('strategy_version') == 'carter-score60-runner-1.0' for r in own):
+            own=[r for r in own if r.get('strategy_version') == 'carter-score60-runner-1.0']
         seen=[r for r in own if r.get('observation_kind')=='OBSERVED'];backfill=[r for r in own if r.get('observation_kind')=='REPLAY_LATE']
         observed.extend(grade(r,bars,session['close']) for r in seen);late.extend(grade(r,bars,session['close']) for r in backfill)
         atr=next((r.get('atr14') for r in own if finite(r.get('atr14')) and r['atr14']>0),snap.get('market',{}).get('atr14'))

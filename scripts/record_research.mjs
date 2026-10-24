@@ -9,7 +9,7 @@ async function save(p,v){await writeFile(p,JSON.stringify(v)+'\n');}
 export async function recordResearch(feeds,snapshots,state,now) {
   const dirs=['decisions','bars','captures','revisions'];await Promise.all(dirs.map(d=>mkdir(join(state,d),{recursive:true})));
   const summary={schema_version:1,generated_at:new Date(now).toISOString(),symbols:{},
-    definition:'WAIT means no new managed baseline entry. OBSERVED and REPLAY_LATE are separate; neither is an executed fill.'};
+    definition:'WAIT means no new approved entry after score-flip and risk gates; baseline_decision preserves sig2. OBSERVED and REPLAY_LATE are separate; neither is an executed fill.'};
   for(const symbol of ['SPY','SPX','AAPL','GOOGL']){
     const snapshot=snapshots[symbol],feed=feeds[symbol],day=snapshot?.session?.date;
     const captured={symbol,observed_at:summary.generated_at,state:snapshot?.health?.state??'UNAVAILABLE',
@@ -21,7 +21,7 @@ export async function recordResearch(feeds,snapshots,state,now) {
     for(const r of rows){
       if(!known.has(r.id)){await appendFile(path,JSON.stringify(r)+'\n');known.set(r.id,r);}
       else {
-        const old=known.get(r.id),fields=x=>[x.decision,x.close,x.evidence_score,x.row_directions];
+        const old=known.get(r.id),fields=x=>[x.decision,x.close,x.evidence_score,x.row_directions,x.radar,x.approved];
         if(hash(fields(old))!==hash(fields(r))){
           const revision={id:r.id,observed_at:r.observed_at,type:'PROVIDER_REPLAY_REVISION',prior_hash:hash(fields(old)),new_hash:hash(fields(r))};
           const rp=join(state,'revisions',day+'.jsonl'),seen=await lines(rp);
@@ -40,7 +40,7 @@ export async function recordResearch(feeds,snapshots,state,now) {
       archive[name]=[...mapping.values()].sort((a,b)=>Date.parse(a.time)-Date.parse(b.time));
     }
     archive.last_received_at=summary.generated_at;await save(archivePath,archive);
-    const own=[...known.values()].filter(r=>r.symbol===symbol&&r.session_date===day&&r.source_fingerprint===feed.source.feed_fingerprint);
+    const own=[...known.values()].filter(r=>r.strategy_version===rows[0]?.strategy_version&&r.symbol===symbol&&r.session_date===day&&r.source_fingerprint===feed.source.feed_fingerprint);
     summary.symbols[symbol]={session_date:day,n:own.length,wait_n:own.filter(r=>r.decision==='WAIT').length,
       observed_n:own.filter(r=>r.observation_kind==='OBSERVED').length,
       observed_wait_n:own.filter(r=>r.observation_kind==='OBSERVED'&&r.decision==='WAIT').length,

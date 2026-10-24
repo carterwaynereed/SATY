@@ -1,3 +1,5 @@
+import {renderPolicyReview} from './approved-rules.mjs';
+import {renderRadar} from './radar.mjs';
 import {renderExitPanel,drawExitChart} from './exit-panel.mjs';
 import {shouldPoll} from './session-mode.mjs';
 import {marketEndpoints,createMarketReader,number,snapshotHealth} from './assets/app.js';
@@ -20,6 +22,7 @@ function detector(id,result){
   $(id).innerHTML='<p><b>'+esc(result.state)+'</b> · '+esc(result.reason)+' · bars n='+result.n+'</p><p><b>Divergence:</b> '+(result.divergence.map(x=>esc(x.type)+' near '+fmt(x.price)+'; confirmed '+esc(x.known_at)).join(' · ')||'not detected')+'</p><p><b>Compression:</b> '+(c?(c.active?'POSSIBLE':'not detected')+' · 8-bar range '+fmt(c.range)+' / daily ATR '+fmt(c.range_daily_atr,3):'unavailable')+'</p><p class="fine">2-left/2-right price pivots versus EMA21 / ATR14 phase proxy; confirmation is dated after the second right bar. Compression: 8-bar range &lt; 0.18 daily ATR. UNVALIDATED, no probability.</p>';
 }
 function render(){
+ renderRadar($('direction-radar'),bundle,{selected:$('symbol').value,onSelect:symbol=>{$('symbol').value=symbol;loadFields();render();}});
   const s=bundle?.symbols?.[$('symbol').value];if(!s){$('status').textContent='DATA HOLD · Instrument unavailable.';return;}
   const symbol=$('symbol').value;
   const model=renderExitPanel($('exit-panel'),s,{selectedId:exitSelections[symbol],failed:fetchFailed,extended:bundle?.extended_hours?.[symbol],manual:shared?.by_symbol?.[symbol],onSelect:id=>{exitSelections[symbol]=id;render();}});drawExitChart($('exit-chart'),s,model);
@@ -43,6 +46,7 @@ const rateText=x=>!x||!x.n?'unavailable · n=0':`${x.hits}/${x.n} = ${fmt(100*x.
 async function metadata(){
   const results=await Promise.allSettled(['eod-review.json','health-alarms.json','manual-inputs.json','shadow-evidence.json'].map(n=>get(DATA+n)));
   const [r,a,m,sh]=results.map(x=>x.status==='fulfilled'?x.value:null);if(m)shared=m;
+  let config=null,paired=null;try{config=await get('data/approved-rules.json');paired=await get(DATA+'policy-evidence.json');}catch{}renderPolicyReview($('policy-review'),config,paired);
   const last=r?.sessions?.at(-1);
   $('health-review').innerHTML='<p>Latest review: '+esc(last?.session_date||'not available')+' · observed signals n='+esc(last?.signal_count??'—')+' · actual observed WAIT n='+esc(last?.wait_count??'—')+' · replay-late n='+esc(last?.replay_late_count??'—')+'</p><p>'+esc(last?.lesson||'No completed ledger review yet.')+'</p><p>Signal excursion fraction: '+esc(rateText(last?.signal_evidence))+'</p><p>WAIT large-move context: '+esc(rateText(last?.wait_missed_move_evidence))+'</p><p>Alarms n='+esc(a?.alarms?.length??'—')+'. Inspection requests are not proof of a broken engine.</p>';
   $('shadow-review').innerHTML=sh?.candidates?.length?sh.candidates.map(c=>'<p><b>'+esc(c.candidate_id)+'</b> · SHADOW ONLY · sessions n='+c.sessions+' · episodes n='+c.episodes_n+'</p><p>Baseline: '+esc(rateText(c.baseline))+'<br>Challenger: '+esc(rateText(c.challenger))+'</p><p>'+esc(c.promotion.reason)+'</p>').join(''):'No executable shadow sample yet · n=0. Registration never implies performance.';

@@ -1,3 +1,5 @@
+import {renderRadar} from './radar.mjs';
+import {scoreDirection,renderPolicyReview} from './approved-rules.mjs';
 import {renderExitPanel} from './exit-panel.mjs';
 import {sessionMode,shouldPoll} from './session-mode.mjs';
 import {analyze,SYMBOLS,journalStats,eastern} from './engine.mjs';
@@ -35,6 +37,7 @@ function maybeEodDefault(){
 }
 function renderDesk(){
  maybeEodDefault();
+ renderRadar($('direction-radar'),{symbols:markets},{selected,onSelect:symbol=>{selectTicker(symbol);document.querySelector('[data-tab="desk"]').click();}});
  const exit=renderExitPanel($('exit-panel'),snapshot,{selectedId:exitSelections[selected],failed:fetchFailed,extended:extendedHours[selected],manual:manualInputs?.by_symbol?.[selected],onSelect:id=>{exitSelections[selected]=id;renderDesk();}});
 
  const h=health(),blocked=h.tone==='hold'||h.state==='DATED SNAPSHOT',m=snapshot?.market||{},r=snapshot?.ribbon||{},s=snapshot?.session||{},source=snapshot?.health?.source||{};
@@ -57,14 +60,15 @@ function renderDesk(){
  put('chart-symbol',selected);put('price',number(saty?m.last:a.price));put('regime',saty?nice(r.alignment):a.regime);put('profile-label',saty?'SATY · 3m RTH':`DESK v0.1 · ${a.profile?.entry??3}m / ${a.profile?.trend??10}m`);put('legend-one',saty?'━ 8 EMA':'━ TREND 13 EMA');put('asof',`${saty?stamp(snapshot?.health?.price_asof):stamp(a.asOf)} ET`);put('session-label',saty?`${s.date||'—'} · ${nice(s.status)} · RTH`:`Paper scanner · ${a.session.name}`);
  put('source-label',saty?`${source.provider||'Source unavailable'} · ${source.source_id||'feed unverified'} · ${finite(source.delay_seconds)?`${source.delay_seconds}s reported delay`:'delay unknown'} · public chart feed · confirmed 3m bars · refresh every 15s.`:`Original paper scanner · ${state.feeds?.provider||state.feeds?.symbols?.[selected]?.provider||'private/imported feed'} · ${paperConnected?'connected':'retained / imported'} · 90-second freshness gate.`);
  const conditions=saty?list(snapshot?.plan?.next_conditions):[],p=saty?null:a.plan;
- put('plan-model',saty?'SATY ENGINE · REPLAY':'DESK v0.1 · PAPER');
- if(saty){replace('trade-plan',conditions.length?conditions.flatMap(c=>{const row=node('div');row.append(node('span',c.label||'Reference level'),node('strong',number(c.price)));if(c.note)row.append(node('small',c.note));return [row];}):[node('div',blocked?h.reason:'No confirmed next-condition map is available.','description')]);}
+ put('plan-model',saty?'APPROVED SCORE60 · SIGNAL ONLY':'DESK v0.1 · PAPER');
+ if(saty&&snapshot?.approved_rules){const policy=snapshot.approved_rules;replace('trade-plan',[node('p','Confirmed 3m flip to CALL ≥60% or PUT ≥60%; next available bar open.','description'),node('p',`Trades today: ${policy.entries_today}/2 · No new entries after 3 PM`),node('p',policy.cooldown_until&&Date.parse(policy.cooldown_until)>Date.now()?`Cooldown until ${time(policy.cooldown_until)} ET`:'Cooldown ready')]);}
+ else if(saty){replace('trade-plan',conditions.length?conditions.flatMap(c=>{const row=node('div');row.append(node('span',c.label||'Reference level'),node('strong',number(c.price)));if(c.note)row.append(node('small',c.note));return [row];}):[node('div',blocked?h.reason:'No confirmed next-condition map is available.','description')]);}
  else if(p){replace('trade-plan',[node('div',`${p.setup} · ${a.decision==='WAIT'||!paperConnected?'Entry blocked':'Paper candidate'}`,'description'),...[['Reference entry',p.entry],['Invalidation',p.stop],['Next level',p.target],['Reward / risk',p.rr]].map(([k,v])=>{const row=node('div');row.append(node('span',k),node('strong',number(v)+(k==='Reward / risk'?'R':'')));return row;})]);}
  else replace('trade-plan',[node('div','No qualified paper setup. Wait for aligned timeframes and a fresh closed-candle trigger.','description')]);
  $('paper').hidden=saty||!localServer||state.paperEntryMode==='scheduled';$('paper').disabled=!paperConnected||a.decision==='WAIT';
  put('paper','Queue local paper study');
  put('study-status',saty?'Signal-only. View completed-candle observations in Setups & evidence.':localServer&&paperConnected?'The local scanner can queue eligible simulated studies.':'This page displays the private paper journal. New studies require the original local scanner; no study runs from this button.');
- put('plan-note',saty?'Setups use completed 3m candles. A replay entry is an observation, never a current fill instruction. Feed collection continues throughout 09:30–16:00 ET; setup entry windows remain explicit.':'Next-minute simulated entry. Underlying slippage and time exits belong to this paper model only. No order or options return is implied.');
+ put('plan-note',saty?'Carter-approved score60 policy: max 2 entries per ticker/session, 30-minute loss/flat cooldown, no new entries after 3 PM. Original sig2 setups remain historical references. Modeled next-open fills are not broker executions.':'Next-minute simulated entry. Underlying slippage and time exits belong to this paper model only. No order or options return is implied.');
  put('level-basis',saty?'SATY ATR · PREVIOUS CLOSE':'DESK v0.1 · PRIOR / PREMARKET / OPENING RANGE');
  const references=saty?[['Previous close',m.prev_close],['Daily ATR14',m.atr14],['Session VWAP',m.vwap]]: [['Paper VWAP',a.vwap],['Entry ATR',a.atrEntry]];
  replace('market-reference',references.map(([k,v])=>{const el=node('span',`${k} `);el.append(node('b',number(v)));return el;}));
@@ -76,6 +80,7 @@ function renderDesk(){
  put('phase-note',`${nice(r.price_position)} ribbon · phase slope ${finite(r.phase_slope)?signed(r.phase_slope):nice(r.phase_slope)}. Frozen RTH variant; context does not alter the paper scanner.`);
  const features=saty?list(snapshot?.evidence_weights?.features):list(a.features),inSession=Boolean(snapshot?.session?.open&&snapshot?.session?.close&&Date.now()>=Date.parse(snapshot.session.open)&&Date.now()<Date.parse(snapshot.session.close));
  const scores=allocateEvidenceWeights(features,{fresh:saty?h.tone==='current':paperConnected&&finite(a.ageSeconds)&&a.ageSeconds<=90,inSession});
+ if(saty){put('decision',blocked?'DATA HOLD':h.tone==='current'?scoreDirection(scores):'WAIT');put('signal-tag','Carter approved · 60% score flip · signal only');put('plan-summary',snapshot?.approved_rules?`Trades today: ${snapshot.approved_rules.entries_today}/2 · No new entries after 3 PM · next-open model, not actual fills`:'Approved policy replay unavailable; no new entry instruction.');}
  for(const key of ['call','put','wait'])put(`${key}-score`,firstMarketRead&&!snapshot?'—':`${scores[key]}%`);
  replace('scorebar',[['call','var(--lime)'],['put','var(--red)'],['wait','#778571']].map(([key,color])=>{const el=node('i');el.style.width=`${scores[key]}%`;el.style.background=color;return el;}));
  put('weight-model',saty?`${selected} · SATY rows`:'DESK v0.1 rows');put('weight-status',scores.reason);put('weight-math',scores.math);$('scores-block').title=scores.math;
@@ -124,8 +129,9 @@ async function getJSON(url,{credential,schema=true,timeout=12000}={}){const cont
 async function refreshPaper(){if(!homeHost){paperConnected=false;paperMessage='The private paper journal lives on the home desk. This public mirror shows only this browser’s imported or retained journal. No private records are published to GitHub.';return;}
  try{const next=await getJSON('/api/snapshot',{credential:'same-origin',schema:false});if(!validPaperSnapshot(next))throw new Error('Invalid private snapshot');state=next;paperConnected=true;paperMessage=`Private ${next.mode==='hosted'?'hosted':'local'} journal · monitor update ${stamped(next.generatedAt)}. Paper feed freshness is checked separately at 90 seconds.`;saveLocal('saty-snapshot',state);}catch(error){paperConnected=false;paperMessage=error.status===401?'The hosted paper journal is private. Optional owner sign-in opens it; the public market desk needs no login. Any records below are retained or imported in this browser only.':error.status===403?'This signed-in account cannot read the owner’s private journal. Any records below are retained or imported in this browser only. Public market data remains available.':'Private monitor unavailable. Retained or imported journal is read-only; no paper setup can be queued. The SATY engine has its own independent feed.';}}
 async function refreshMetadata(){
- const results=await Promise.allSettled([readEvidence(endpoints.evidence,{sameOrigin:endpoints.sameOrigin,timeout:12000}),getJSON(`${DATA_BASE}uw.json`),getJSON(`${DATA_BASE}learning.json`),getJSON(`${DATA_BASE}manual-inputs.json`)]);metadataIssues=[];metadataFailures=new Set();
+ const results=await Promise.allSettled([readEvidence(endpoints.evidence,{sameOrigin:endpoints.sameOrigin,timeout:12000}),getJSON(`${DATA_BASE}uw.json`),getJSON(`${DATA_BASE}learning.json`),getJSON(`${DATA_BASE}manual-inputs.json`),getJSON('data/approved-rules.json'),getJSON(`${DATA_BASE}policy-evidence.json`)]);metadataIssues=[];metadataFailures=new Set();
  for(const [i,name] of [[0,'evidence'],[1,'uw'],[2,'learning']]){let value=results[i].status==='fulfilled'?results[i].value:null;if(!value){metadataFailures.add(name);metadataIssues.push(`${name} is a bundled or retained reference because the current file is unavailable.`);try{value=await getJSON(`data/${name==='evidence'?'tv-evidence':name}.json`);}catch{}}if(value){if(name==='evidence')evidencePack=value;if(name==='uw')uw=value;if(name==='learning')learning=value;}}
+ renderPolicyReview($('policy-review'),results[4].status==='fulfilled'?results[4].value:null,results[5].status==='fulfilled'?results[5].value:null);
  manualInputs=results[3].status==='fulfilled'?results[3].value:null;metadataReadAt=Date.now();if(!firstMarketRead)selectTicker(selected);renderLearning();await refreshPaper();renderJournal();
 }
 async function refresh(){if(fetching)return;lastPoll=Date.now();fetching=true;$('refresh').disabled=true;const generation=++requestGeneration;try{
@@ -150,6 +156,7 @@ $('note-form').onsubmit=event=>{event.preventDefault();const url=safeHref($('not
 $('calendar-form').onsubmit=async event=>{event.preventDefault();try{if(!localServer||!paperConnected)throw new Error('Calendar changes require the original local scanner.');await post('/api/context',{events:JSON.parse($('event-list').value),eventSource:$('event-source').value});toast('Local calendar review saved.');await refresh();}catch(error){toast(error.message);}};
 getJSON('sources.json',{schema:false}).then(sources=>replace('sources',list(sources).map(s=>{const el=node('div',undefined,'source');el.append(link(`${s.title} ↗`,s.url),node('small',s.status),node('p',s.note));return el;}))).catch(()=>put('sources','Source library could not load.'));
 function clock(){put('clock',`${new Date().toLocaleTimeString('en-US',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',second:'2-digit'})} ET`);}
+const requestedSymbol=new URLSearchParams(location.search).get('symbol');if(SYMBOLS.includes(requestedSymbol)){selected=requestedSymbol;$('ticker-select').value=selected;}
 clock();renderNotes();renderDesk();renderUW();renderJournal();renderLearning();refresh();if(location.hash==='#learning')document.querySelector('[data-tab="learning"]').click();setInterval(clock,1000);setInterval(()=>{if(!document.hidden){renderDesk();renderUW();}},15000);setInterval(()=>{if(!document.hidden&&shouldPoll(lastPoll,Date.now(),snapshot?.session))refresh();},1000);document.addEventListener('visibilitychange',()=>{if(!document.hidden){renderDesk();if(shouldPoll(lastPoll,Date.now(),snapshot?.session))refresh();}});new ResizeObserver(()=>{if(page==='desk')draw();}).observe($('chart').parentElement);
 
 async function dailyLearningReview(){try{const r=await getJSON(DATA_BASE+'eod-review.json');const latest=r.sessions?.at(-1);put('daily-research-summary',latest?latest.session_date+' · '+latest.lesson:'No completed daily review yet.');}catch{put('daily-research-summary','Daily review unavailable; no result is invented.');}}

@@ -42,6 +42,8 @@ jobs:
         run: python scripts/daily_eod_review.py
       - name: Replay executable challenger on subsequent complete sessions
         run: node scripts/run_shadow.mjs --state-dir .dashboard-state/state
+      - name: Measure approved runner and no-runner policies plus direction radar
+        run: node scripts/review_approved.mjs --state-dir .dashboard-state/state
       - name: Persist review, alarms, and dated challenger changelog
         run: python scripts/sync_state.py commit
       - name: Verify emitted review documents
