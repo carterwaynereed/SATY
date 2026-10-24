@@ -1,11 +1,17 @@
 # Momentum Tracker and reference desk
 
-The light home screen puts one daily Momentum Tracker first, followed by a
+The dark home screen puts one daily Momentum Tracker first, followed by a
 secondary research watch, four direction-watch chips and display-only Unusual
 Whales context. The full desk is visible below: ticker chart, ATR levels, Pivot
 Ribbon and phase, directional evidence weights, reference setups, notes, and
 the owner-only paper journal. End-of-day review remains directly linked. These
 tools support review without becoming additional live signal streams.
+
+The dark theme is the default on the main desk, reference pages and EOD. Green
+marks bullish/HOLD/winning outcomes, amber marks watch/readiness, red marks
+bearish/EXIT/losing outcomes, cyan marks information, and gray marks inactive or
+unavailable data. Text labels accompany the colors; missing values never inherit
+an active signal color. Chart palettes use the same shared theme tokens.
 
 Level Bounce, Box Break and prior score-based models remain labeled REFERENCE;
 they do not feed the hosted live signal policy. Trigger escape remains an event
