@@ -19,9 +19,10 @@ function feed(symbol,now) {
   for(const d of days)for(let start=t(d+'T13:30:00Z');start<t(d+'T20:00:00Z')&&start+180000<=now;start+=180000)bars.push(bar(start,bars.length,symbol==='SPX'?null:100));
   const daily=[];
   for(let date=t('2026-03-02T13:30:00Z');date<t(day+'T13:30:00Z');date+=86400000)if(![0,6].includes(new Date(date).getUTCDay()))daily.push({time:new Date(date).toISOString(),open:100,high:101,low:99,close:100,volume:1000});
+  const one=[];for(const d of days)for(let start=t(d+'T13:30:00Z');start<t(d+'T20:00:00Z')&&start+60000<=now;start+=60000)one.push(bar(start,one.length));
   const trend=[];
   for(const d of days)for(let start=t(d+'T13:30:00Z');start<t(d+'T20:00:00Z')&&start+600000<=now;start+=600000)trend.push(bar(start,trend.length));
-  return {symbol,source:{provider:'TradingView',symbol: symbol==='SPX'?'TVC:SPX':symbol==='SPY'?'AMEX:SPY':'NASDAQ:'+symbol,source_id:symbol==='SPX'?'TVC':'BATS',feed_fingerprint:'sha256:cache-test-'+symbol},bars,trend_bars:trend,daily,attempts:[{symbol,status:'OK'}]};
+  return {symbol,source:{provider:'TradingView',symbol: symbol==='SPX'?'TVC:SPX':symbol==='SPY'?'AMEX:SPY':'NASDAQ:'+symbol,source_id:symbol==='SPX'?'TVC':'BATS',feed_fingerprint:'sha256:cache-test-'+symbol},bars,one_bars:one,trend_bars:trend,daily,attempts:[{symbol,status:'OK'}]};
 }
 class Bucket {
   data=new Map();reads=[];writes=[];
@@ -42,11 +43,12 @@ test('market request fans out to four independent tickers and shares concurrent 
   assert.deepEqual(x.bucket.writes,[MARKET_KEY]);assert.equal(MARKET_KEY,'saty-plus/market-v2.json');
 });
 
-test('fresh bar cache survives polling and refreshes at the next close plus five seconds',async()=>{
+test('cache coalesces polling and refreshes on a completed 1m boundary plus five seconds',async()=>{
   const x=setup();await x.get(x.bucket);assert.equal(x.calls.length,4);
   x.set('2026-10-23T14:00:20Z');const cached=await x.get(x.bucket);assert.equal(x.calls.length,4);assert.equal(cached.symbols.SPY.health.age_seconds,20);
-  x.set('2026-10-23T14:03:04Z');await x.get(x.bucket);assert.equal(x.calls.length,4);
-  x.set('2026-10-23T14:03:05Z');const fresh=await x.get(x.bucket);assert.equal(x.calls.length,8);assert.equal(fresh.symbols.SPY.health.price_asof,'2026-10-23T14:03:00.000Z');
+  x.set('2026-10-23T14:01:04Z');await x.get(x.bucket);assert.equal(x.calls.length,4);
+  x.set('2026-10-23T14:01:05Z');const minute=await x.get(x.bucket);assert.equal(x.calls.length,8);assert.equal(minute.symbols.SPY.one_minute_health.price_asof,'2026-10-23T14:01:00.000Z');
+  x.set('2026-10-23T14:03:05Z');const fresh=await x.get(x.bucket);assert.equal(x.calls.length,12);assert.equal(fresh.symbols.SPY.health.price_asof,'2026-10-23T14:03:00.000Z');
 });
 
 test('failed symbol is held independently and retries after 15 seconds without refetching good tickers',async()=>{

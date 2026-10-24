@@ -11,7 +11,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 WORK = ROOT / '.dashboard-state'
 BRANCH = 'dashboard-data'
-PUBLIC_FILES = ('latest.json', 'evidence.json', 'uw.json', 'learning.json', 'market.json', 'tv-evidence.json', 'eod-review.json', 'health-alarms.json', 'changelog.json', 'challengers.jsonl')
+PUBLIC_FILES = ('latest.json', 'evidence.json', 'uw.json', 'learning.json', 'market.json', 'tv-evidence.json', 'eod-review.json', 'health-alarms.json', 'changelog.json', 'challengers.jsonl', 'manual-inputs.json', 'decision-summary.json', 'shadow-evidence.json')
 
 
 def git(*args, cwd=ROOT, check=True, capture=False):
@@ -35,7 +35,7 @@ def prepare():
         raise RuntimeError('Could not check the remote data branch; refusing to overwrite state.')
     (WORK / 'state').mkdir(exist_ok=True)
     for name in PUBLIC_FILES:
-        if (WORK / name).exists():
+        if name not in ('evidence.json', 'tv-evidence.json', 'learning.json', 'uw.json') and (WORK / name).exists():
             shutil.copyfile(WORK / name, ROOT / 'site/data' / name)
     print('Durable public state prepared.')
 

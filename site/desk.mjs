@@ -26,7 +26,12 @@ function selectedUW(){return uw?.by_symbol?.[selected]??(uw?.symbol===selected?u
 function manualLevels(){return metadataFailures.has('uw')?[]:manualTickerLevels(selectedUW(),selected);}
 function selectTicker(symbol){if(!SYMBOLS.includes(symbol))return;selected=symbol;$('ticker-select').value=symbol;snapshot=markets[symbol]??null;evidence=evidencePack?.by_symbol?.[symbol]??(symbol==='SPY'&&!evidencePack?.by_symbol?evidencePack:null);renderDesk();renderSignals();renderEvidence();renderUW();}
 function health(){return firstMarketRead&&!snapshot?{state:'CONNECTING',tone:'hold',reason:'Opening the TradingView public chart feed…'}:snapshotHealth(snapshot,Date.now(),fetchFailed);}
+function maybeEodDefault(){
+ const s=snapshot?.session,now=Date.now();
+ if(!location.hash&&!new URLSearchParams(location.search).has('view')&&page==='desk'&&s?.date===eastern(now).date&&now>=Date.parse(s.close)-1800000&&now<Date.parse(s.close))location.replace(new URL('eod.html',location.href));
+}
 function renderDesk(){
+ maybeEodDefault();
  const h=health(),blocked=h.tone==='hold'||h.state==='DATED SNAPSHOT',m=snapshot?.market||{},r=snapshot?.ribbon||{},s=snapshot?.session||{},source=snapshot?.health?.source||{};
  const analyses=paperAnalyses(),a=analyses.find(x=>x.symbol===selected),spy=analyses.find(x=>x.symbol==='SPY');
  $('connection').className=`connection ${blocked?'warning':''}`;put('connection',`${h.state} · ${h.reason}${finite(h.age)?` Last bar ${Math.max(0,Math.floor(h.age/60))} min ago.`:''}`);
@@ -140,4 +145,7 @@ $('note-form').onsubmit=event=>{event.preventDefault();const url=safeHref($('not
 $('calendar-form').onsubmit=async event=>{event.preventDefault();try{if(!localServer||!paperConnected)throw new Error('Calendar changes require the original local scanner.');await post('/api/context',{events:JSON.parse($('event-list').value),eventSource:$('event-source').value});toast('Local calendar review saved.');await refresh();}catch(error){toast(error.message);}};
 getJSON('sources.json',{schema:false}).then(sources=>replace('sources',list(sources).map(s=>{const el=node('div',undefined,'source');el.append(link(`${s.title} ↗`,s.url),node('small',s.status),node('p',s.note));return el;}))).catch(()=>put('sources','Source library could not load.'));
 function clock(){put('clock',`${new Date().toLocaleTimeString('en-US',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',second:'2-digit'})} ET`);}
-const etParts=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(new Date());const etNow=Object.fromEntries(etParts.map(x=>[x.type,x.value]));const etMinute=Number(etNow.hour)*60+Number(etNow.minute);if(!location.hash&&etMinute>=930&&etMinute<960)location.replace(new URL('eod.html',location.href));\nclock();renderNotes();renderDesk();renderUW();renderJournal();renderLearning();refresh();if(location.hash==='#learning')document.querySelector('[data-tab="learning"]').click();setInterval(clock,1000);setInterval(()=>{if(!document.hidden){renderDesk();renderUW();}},15000);setInterval(()=>{if(!document.hidden)refresh();},15000);document.addEventListener('visibilitychange',()=>{if(!document.hidden){renderDesk();refresh();}});new ResizeObserver(()=>{if(page==='desk')draw();}).observe($('chart').parentElement);
+clock();renderNotes();renderDesk();renderUW();renderJournal();renderLearning();refresh();if(location.hash==='#learning')document.querySelector('[data-tab="learning"]').click();setInterval(clock,1000);setInterval(()=>{if(!document.hidden){renderDesk();renderUW();}},15000);setInterval(()=>{if(!document.hidden)refresh();},15000);document.addEventListener('visibilitychange',()=>{if(!document.hidden){renderDesk();refresh();}});new ResizeObserver(()=>{if(page==='desk')draw();}).observe($('chart').parentElement);
+
+async function dailyLearningReview(){try{const r=await getJSON(DATA_BASE+'eod-review.json');const latest=r.sessions?.at(-1);put('daily-research-summary',latest?latest.session_date+' · '+latest.lesson:'No completed daily review yet.');}catch{put('daily-research-summary','Daily review unavailable; no result is invented.');}}
+dailyLearningReview();

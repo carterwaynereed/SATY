@@ -1,125 +1,206 @@
 #!/usr/bin/env python3
-"""Daily descriptive EOD review and engine-health checks. Never edits baseline rules."""
+"""After-close research review from immutable decisions, bars and public inputs.
+
+Never relabel a latest score as all-day WAIT. Replay-late and observed decisions
+have separate denominators. Alarms are inspection requests, not proof of a bug.
+"""
 from __future__ import annotations
-import argparse, json, math, os
+import argparse
+from collections import Counter
 from datetime import datetime, timezone
+import hashlib
+import json
+import math
+import os
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 ROOT=Path(__file__).resolve().parents[1]
-DATA=ROOT/'site'/'data'
-STATE=ROOT/'.dashboard-state'
-def read(path, fallback):
-    try: return json.loads(path.read_text(encoding='utf-8'))
-    except (OSError,ValueError): return fallback
-def write(path,obj):
-    path.parent.mkdir(parents=True,exist_ok=True)
-    path.write_text(json.dumps(obj,indent=2,ensure_ascii=False)+'\n',encoding='utf-8')
-def finite(x): return isinstance(x,(int,float)) and math.isfinite(x)
-def main():
-    p=argparse.ArgumentParser();p.add_argument('--data-dir',type=Path,default=DATA);p.add_argument('--state-dir',type=Path,default=STATE);p.add_argument('--now',help='ISO timestamp for deterministic tests');a=p.parse_args()
-    data=a.data_dir; state=a.state_dir; now=datetime.fromisoformat(a.now.replace('Z','+00:00')) if a.now else datetime.now(timezone.utc)
-    now=now.astimezone(timezone.utc); stamp=now.isoformat(timespec='seconds').replace('+00:00','Z')
-    market=read(data/'market.json',{}); symbols=market.get('symbols',{}) if isinstance(market,dict) else {}
-    reviews=read(data/'eod-review.json',{'schema_version':1,'sessions':[]}); alarms_doc=read(data/'health-alarms.json',{'schema_version':1,'alarms':[]})
-    changes=read(data/'changelog.json',{'schema_version':1,'entries':[]})
-    sessions=reviews.setdefault('sessions',[]); alarms=alarms_doc.setdefault('alarms',[]); changes_list=changes.setdefault('entries',[])
-    date=now.date().isoformat(); prior=next((x for x in reversed(sessions) if x.get('session_date')==date),None)
-    if prior: # idempotent same-day scheduled rerun: replace that date's computed record, preserve changelog/alarms
-        sessions.remove(prior)
-    allsignals=[]; wait_rows=[]; instrument_summary=[]; new_alarms=[]
-    for symbol,snap in symbols.items():
-        bars=[b for b in snap.get('bars',[]) if finite(b.get('close')) and finite(b.get('high')) and finite(b.get('low')) and isinstance(b.get('time'),str)]
-        today=[b for b in bars if b['time'][:10]==date]
-        m=snap.get('market',{}); atr=m.get('atr14') if finite(m.get('atr14')) and m.get('atr14')>0 else None
-        signals=[x for x in snap.get('signals',[]) if str(x.get('decision_at',''))[:10]==date]
-        for sig in signals:
-            t=sig.get('decision_at',''); future=[b for b in today if b['time']>t][:5]
-            side=sig.get('side'); entry=sig.get('entry') if finite(sig.get('entry')) else next((b['close'] for b in today if b['time']>=t),None)
-            if future and finite(entry) and side in ('LONG','SHORT'):
-                favorable=max(((b['high']-entry) if side=='LONG' else (entry-b['low']) for b in future))
-                adverse=max(((entry-b['low']) if side=='LONG' else (b['high']-entry) for b in future))
-                outcome='FAVORABLE_EXCURSION_DOMINANT' if favorable>adverse else 'ADVERSE_EXCURSION_DOMINANT' if adverse>favorable else 'TIE_OR_FLAT'
-                allsignals.append({'symbol':symbol,'signal_id':sig.get('id'),'setup':sig.get('setup'),'side':side,'decision_at':t,'status':sig.get('status'),'grade':outcome,'horizon_bars':len(future),'favorable_excursion':round(favorable,6),'adverse_excursion':round(adverse,6),'atr14':atr,'note':'Descriptive next-five-confirmed-bars excursion dominance, not first-touch order, a fill or trade return.'})
-            else:
-                allsignals.append({'symbol':symbol,'signal_id':sig.get('id'),'setup':sig.get('setup'),'side':side,'decision_at':t,'status':sig.get('status'),'grade':'UNRESOLVED','horizon_bars':len(future),'atr14':atr,'note':'Insufficient post-decision bars or side/entry; not scored.'})
-        weights=snap.get('evidence_weights',{}); wait=float(weights.get('wait',0)) if finite(weights.get('wait')) else None
-        move_atr=None
-        if today and atr: move_atr=(max(b['high'] for b in today)-min(b['low'] for b in today))/atr
-        wait_rows.append({'symbol':symbol,'wait_weight':wait,'move_atr':move_atr,'n_bars':len(today)})
-        health=snap.get('health',{}); asof=health.get('price_asof'); age=health.get('age_seconds') if finite(health.get('age_seconds')) else ((datetime.fromisoformat(market.get('generated_at','').replace('Z','+00:00'))-datetime.fromisoformat(asof.replace('Z','+00:00'))).total_seconds() if isinstance(asof,str) and isinstance(market.get('generated_at'),str) else None)
-        if snap.get('session',{}).get('status')=='OPEN' and (age is None or age>225):
-            new_alarms.append({'type':'STALE_FEED','symbol':symbol,'at':stamp,'detail':f'Confirmed-bar feed stale/unavailable; age_seconds={round(age) if age is not None else None}. DATA HOLD required.'})
-        if today and move_atr is not None and move_atr>=1.0 and wait is not None and wait>=90 and len(signals)==0:
-            new_alarms.append({'type':'ENGINE_ALL_DAY_WAIT','symbol':symbol,'at':stamp,'detail':f'ENGINE CHECK: all-day WAIT while {symbol} moved {move_atr:.2f} ATR; wait_weight={wait:.0f}/100, bars_n={len(today)}. Review missed moves and gates.'})
-        instrument_summary.append({'symbol':symbol,'n_bars':len(today),'n_signals':len(signals),'wait_weight':wait,'move_atr':round(move_atr,4) if move_atr is not None else None,'feed_age_seconds':round(age) if age is not None else None})
-    active_reviews=[x for x in sessions if any(i.get('n_bars',0)>0 for i in x.get('instruments',[]))]
-    if len(active_reviews)>=2:
-        recent=active_reviews[-2:]
-        for symbol in symbols:
-            vals=[x.get('weights',{}).get(symbol) for x in recent]
-            if all(v is not None for v in vals) and vals[0]==vals[1]:
-                new_alarms.append({'type':'WEIGHTS_STUCK','symbol':symbol,'at':stamp,'detail':'Directional evidence weights unchanged across at least two daily reviews; verify feed and calculation path.'})
-        for symbol in symbols:
-            recent_rows=[x for x in active_reviews[-3:] if any(i.get('symbol')==symbol and i.get('n_bars',0)>0 for i in x.get('instruments',[]))]
-            if len(recent_rows)>=2 and all(next(i for i in x['instruments'] if i['symbol']==symbol).get('n_signals',0)==0 for x in recent_rows):
-                new_alarms.append({'type':'ZERO_SETUPS_2_SESSIONS','symbol':symbol,'at':stamp,'detail':'No setups in 2+ reviewed sessions; inspect engine health, gates and feed before interpreting as market conditions.'})
-        for symbol in symbols:
-            directions=[]
-            for x in active_reviews[-5:]:
-                directions += [z.get('side') for z in x.get('signals',[]) if z.get('symbol')==symbol and z.get('side') in ('LONG','SHORT')]
-            if len(directions)>=5 and (directions.count('LONG')==0 or directions.count('SHORT')==0):
-                new_alarms.append({'type':'ONE_SIDED_CALLS','symbol':symbol,'at':stamp,'detail':f'Only one direction in last reviewed signals (n={len(directions)}); inspect directional bias and sample coverage.'})
-    for alarm in new_alarms:
-        if not any(x.get('type')==alarm['type'] and x.get('symbol')==alarm.get('symbol') and x.get('at','')[:10]==date for x in alarms):
-            alarms.append(alarm)
-            if alarm['type'] in ('ENGINE_ALL_DAY_WAIT','STALE_FEED','WEIGHTS_STUCK','ZERO_SETUPS_2_SESSIONS','ONE_SIDED_CALLS'):
-                cid=f"CHAL-{date.replace('-','')}-{alarm['symbol']}-{alarm['type']}"
-                changes_list.append({'date':date,'at':stamp,'type':'CHALLENGER_REGISTERED','candidate_id':cid,'trigger':alarm['type'],'baseline_unchanged':True,'promotion':'NOT_PROMOTED','note':'Shadow candidate only. Paired same-session evaluation required; promotion gates remain >=30 sessions, >=100 independent episodes, session-cluster uncertainty, costs/delay stress, guardrails, and reviewed PR.'})
-                chpath=data/'challengers.jsonl'
-                chpath.parent.mkdir(exist_ok=True)
-                old=chpath.read_text(encoding='utf-8') if chpath.exists() else ''
-                rec={'record_id':cid,'candidate_id':cid,'recorded_at':stamp,'status':'REGISTERED','rule_delta':({'ENGINE_ALL_DAY_WAIT':'Shadow-watch days with >=1 ATR range, WAIT >=90 and zero baseline signals; do not create a directional call.','STALE_FEED':'Keep DATA HOLD; challenger checks feed-health telemetry only and never relaxes freshness gates.','WEIGHTS_STUCK':'Shadow-check evidence weight recomputation against fresh bars; do not modify baseline weights.','ZERO_SETUPS_2_SESSIONS':'Shadow-test a lower setup-confirmation threshold on new bars without issuing orders.','ONE_SIDED_CALLS':'Shadow-audit directional symmetry on new bars without changing live calls.'}.get(alarm['type'],'Shadow diagnostic only; baseline unchanged.')),'supersedes_record_id':None,'baseline_commit':os.getenv('GITHUB_SHA'),'challenger_commit':None,'strategy_version':'saty-sig-2.0-shadow','evidence_hash':None,'registered_at':stamp,'evaluation_start':date,'evaluation_end':None,'review_date':None,'primary_metric':'paired session-level missed-move coverage versus frozen baseline','minimum_effect':'Pre-register before evaluation; not set by alarm run','decision_rule':'No promotion without >=30 sessions and >=100 nonduplicated episodes plus all registered gates','guardrails':['No change to live baseline','Signal-only; no orders','Report n and uncertainty intervals','Costs, delay and session-cluster sensitivity required'],'session_calendar':'XNYS','source_and_session_basis':'TradingView confirmed bars; RTH','episode_definition':'One alarm-triggered session episode, deduplicated by symbol/date/type','overlap_policy':'One episode per symbol/date/alarm type','cost_and_delay_assumptions':'Must be preregistered before prospective test','multiplicity_and_stopping_plan':'Fixed review date and registered hypothesis required','exclusion_rules':['Stale or incomplete bars remain DATA HOLD'],'results':{'sessions':0,'eligible_episodes':0,'independent_episode_count':0,'coverage':None,'primary_effect':None,'confidence_interval':None,'session_cluster_method':None,'guardrail_results':[],'cost_stress_results':[],'calibration':None,'failures':['Automatically registered from health alarm; no performance evidence yet']},'decision':None,'reviewed_by':None,'reviewed_at':None,'promotion_pr':None,'rollback_commit':None}
-                if cid not in old: chpath.open('a',encoding='utf-8').write(json.dumps(rec,separators=(',',':'))+'\n')
-    # Evaluate registered diagnostic challengers in shadow mode alongside the frozen baseline.
-    # These are explicit diagnostics, not alternate directional entries or orders.
-    shadow=[]
-    registry_path=data/'challengers.jsonl'
-    if registry_path.exists():
-        for line in registry_path.read_text(encoding='utf-8').splitlines():
-            try: candidate=json.loads(line)
-            except ValueError: continue
-            if candidate.get('status')!='REGISTERED' or candidate.get('registered_at','')[:10]>=date: continue
-            cid=candidate.get('candidate_id','')
-            parts=cid.split('-')
-            sym=parts[2] if len(parts)>2 else None
-            for symbol,snap in symbols.items():
-                if sym and sym not in (symbol,): continue
-                bars=[b for b in snap.get('bars',[]) if isinstance(b.get('time'),str) and b['time'][:10]==date and finite(b.get('high')) and finite(b.get('low'))]
-                m=snap.get('market',{});atr=m.get('atr14') if finite(m.get('atr14')) and m.get('atr14')>0 else None
-                move=((max(b['high'] for b in bars)-min(b['low'] for b in bars))/atr) if bars and atr else None
-                w=snap.get('evidence_weights',{}).get('wait')
-                sigs=[x for x in snap.get('signals',[]) if str(x.get('decision_at',''))[:10]==date]
-                trigger=None;reason='Insufficient inputs for shadow evaluation.'
-                if 'ENGINE_ALL_DAY_WAIT' in cid:
-                    trigger=bool(bars and move is not None and move>=1 and finite(w) and w>=90 and not sigs);reason='Diagnostic condition: daily range >=1 ATR, latest WAIT >=90, and no recorded baseline signal.'
-                elif 'STALE_FEED' in cid:
-                    age=snap.get('health',{}).get('age_seconds');trigger=bool(snap.get('session',{}).get('status')=='OPEN' and (not finite(age) or age>225));reason='Feed freshness diagnostic; DATA HOLD remains mandatory.'
-                elif 'ZERO_SETUPS_2_SESSIONS' in cid:
-                    trigger=bool(bars and not sigs);reason='Shadow observation only; no lower-threshold directional call is emitted.'
-                elif 'WEIGHTS_STUCK' in cid:
-                    trigger=bool(bars and finite(w));reason='Input availability observed; no alternative weight calculation is claimed.'
-                elif 'ONE_SIDED_CALLS' in cid:
-                    trigger=bool(bars and sigs);reason='Directional cohort observed; no live-call change.'
-                shadow.append({'candidate_id':cid,'symbol':symbol,'session_date':date,'triggered':trigger,'baseline_signal_n':len(sigs),'bars_n':len(bars),'move_atr':round(move,4) if move is not None else None,'wait_weight':w if finite(w) else None,'reason':reason,'promotion':'NOT_PROMOTED'})
-    counts={'signals':len(allsignals),'graded':sum(x['grade'] not in ('UNRESOLVED',) for x in allsignals),'unresolved':sum(x['grade']=='UNRESOLVED' for x in allsignals),'wait_decisions':sum(1 for x in wait_rows if finite(x.get('wait_weight')) and x['wait_weight']>=90),'instruments':len(instrument_summary)}
-    graded=[x for x in allsignals if x['grade']!='UNRESOLVED'];wins=sum(x['grade']=='FAVORABLE_EXCURSION_DOMINANT' for x in graded);n=len(graded)
-    rate=wins/n if n else None
-    # Wilson 95% interval for a descriptive favorable-first fraction.
+ET=ZoneInfo('America/New_York')
+
+def read(p,default):
+    try: return json.loads(p.read_text())
+    except FileNotFoundError: return default
+
+def lines(p):
+    try: return [json.loads(x) for x in p.read_text().splitlines() if x.strip()]
+    except FileNotFoundError: return []
+
+def write(p,obj):
+    p.parent.mkdir(parents=True,exist_ok=True)
+    p.write_text(json.dumps(obj,ensure_ascii=False,separators=(',',':'),allow_nan=False)+'\n')
+
+def finite(x): return not isinstance(x,bool) and isinstance(x,(int,float)) and math.isfinite(x)
+def dt(s): return datetime.fromisoformat(s.replace('Z','+00:00'))
+def dayof(s): return dt(s).astimezone(ET).date().isoformat()
+
+def rate(h,n):
     interval=None
     if n:
-        z=1.96;den=1+z*z/n;center=(rate+z*z/(2*n))/den;half=z*math.sqrt(rate*(1-rate)/n+z*z/(4*n*n))/den;interval=[round(max(0,center-half),4),round(min(1,center+half),4)]
-    review={'session_date':date,'reviewed_at':stamp,'signal_count':len(allsignals),'wait_count':counts['wait_decisions'],'graded_count':n,'unresolved_count':counts['unresolved'],'favorable_excursion_dominant_rate':round(rate,4) if rate is not None else None,'favorable_excursion_dominant_interval_95_wilson':interval,'sample_n':n,'signals':allsignals,'instruments':instrument_summary,'challenger_shadow_evaluations':shadow,'weights':{sym:snap.get('evidence_weights') for sym,snap in symbols.items()},'lesson':('Reviewed '+str(len(allsignals))+' signal observations; '+str(counts['unresolved'])+' unresolved due to missing follow-through bars. Challenger rules remain shadow-only.'),'alarms_created':new_alarms,'wait_assessment':'The published snapshot exposes only the latest directional evidence allocation, not a per-bar historical WAIT ledger. WAIT count is a current-state proxy and is not represented as a count of every intraday WAIT. The all-day-WAIT alarm requires no recorded signal plus current WAIT >=90 and a daily range >=1 ATR; inspect missed moves manually.','note':'Descriptive price excursion grading only; not P&L, not an options forecast, not an executable fill. Rates use n and Wilson intervals; session dependence remains.'}
-    sessions.append(review);reviews['sessions']=sessions[-180:];alarms_doc['alarms']=alarms[-1000:];changes['entries']=changes_list[-1000:]
-    write(data/'eod-review.json',reviews);write(data/'health-alarms.json',alarms_doc);write(data/'changelog.json',changes)
-    print(json.dumps({'date':date,'signal_n':len(allsignals),'graded_n':n,'unresolved_n':counts['unresolved'],'alarm_n':len(new_alarms),'challenger_candidates_created':sum(1 for x in new_alarms if x['type'] in ('ENGINE_ALL_DAY_WAIT','STALE_FEED','WEIGHTS_STUCK','ZERO_SETUPS_2_SESSIONS','ONE_SIDED_CALLS')),'interval_95_wilson':interval},indent=2))
+        p=h/n;z=1.959963984540054;den=1+z*z/n;c=(p+z*z/(2*n))/den
+        half=z*math.sqrt(p*(1-p)/n+z*z/(4*n*n))/den;interval=[max(0,c-half),min(1,c+half)]
+    return {'hits':h,'n':n,'rate':h/n if n else None,'wilson_95':interval,
+            'method':'Wilson 95%, descriptive; overlapping intraday observations are correlated'}
+
+def grade(decision,bars,close):
+    at=dt(decision['time']);end=dt(close);price=decision.get('close');atr=decision.get('atr14')
+    future=[b for b in bars if dt(b['time'])>=at][:5]
+    expected=min(5,int((end-at).total_seconds()//180))
+    valid=expected>0 and len(future)==expected and all((dt(b['time'])-at).total_seconds()==i*180 for i,b in enumerate(future))
+    base={'id':decision['id'],'symbol':decision['symbol'],'decision':decision['decision'],
+          'time':decision['time'],'observed_at':decision['observed_at'],'observation_kind':decision['observation_kind'],
+          'horizon_bars':len(future),'grade':'UNRESOLVED'}
+    if not valid or not finite(price) or not finite(atr) or atr<=0: return base
+    up=max(0,max(b['high'] for b in future)-price);down=max(0,price-min(b['low'] for b in future))
+    base.update(up_atr=up/atr,down_atr=down/atr)
+    if decision['decision']=='WAIT':
+        base['grade']='MISSED_MOVE_CONTEXT' if max(up,down)/atr>=0.25 else 'SMALL_MOVE_CONTEXT'
+    else:
+        favorable,adverse=(up,down) if decision['decision']=='CALL' else (down,up)
+        base.update(favorable_excursion=favorable,adverse_excursion=adverse,
+                    grade='FAVORABLE_EXCURSION_DOMINANT' if favorable>adverse else 'ADVERSE_EXCURSION_DOMINANT' if adverse>favorable else 'TIE_OR_FLAT')
+    return base
+
+RULE={'kind':'atr_cross','trigger_atr':0.236,'confirmation':'relaxed','risk_atr':0.15,'target_r':1,'horizon_bars':5}
+
+def register_challengers(data,alarms,stamp,changes):
+    path=data/'challengers.jsonl';existing=lines(path);latest={x['candidate_id']:x for x in existing}
+    # Legacy text-only diagnostics are retained, but not advertised as executable.
+    for alarm in alarms:
+        cid=f"CHAL-{stamp[:10].replace('-','')}-{alarm['symbol']}-{alarm['type']}"
+        if cid in latest: continue
+        rec={'record_id':cid,'candidate_id':cid,'symbol':alarm['symbol'],'recorded_at':stamp,
+             'status':'QUEUED','registered_at':None,'trigger':alarm['type'],'rule_set':None,
+             'baseline_version':'saty-sig-2.0','baseline_commit':os.getenv('GITHUB_SHA'),
+             'promotion':'NOT_PROMOTED','supersedes_record_id':None}
+        existing.append(rec);latest[cid]=rec
+        changes.append({'date':stamp[:10],'at':stamp,'type':'CHALLENGER_QUEUED','candidate_id':cid,
+                        'trigger':alarm['type'],'baseline_unchanged':True,'promotion':'NOT_PROMOTED'})
+    active=[c for c in latest.values() if c.get('status')=='SHADOW' and c.get('rule_set')]
+    if len(active)>1: raise ValueError('More than one active shadow challenger')
+    if not active:
+        queued=[c for c in latest.values() if c.get('status') in ('QUEUED','REGISTERED') and not c.get('rule_set')]
+        if queued:
+            old=queued[0];cid=old['candidate_id'];symbol=old.get('symbol') or next((s for s in ('SPY','SPX','AAPL','GOOGL') if '-'+s+'-' in cid),None)
+            if symbol:
+                rule=dict(RULE)
+                if any(k in cid for k in ('STALE_FEED','WEIGHTS_STUCK','REVIEW_DATA_INCOMPLETE')):
+                    rule['kind']='baseline';rule['confirmation']='strict'
+                rec={**old,'record_id':cid+'-executable-v1','supersedes_record_id':old['record_id'],
+                     'status':'SHADOW','registered_at':stamp,'symbol':symbol,'rule_set':rule,
+                     'evaluation_start':'FIRST_SESSION_OPEN_AFTER_REGISTRATION','minimum_sessions':30,'minimum_episodes':100,
+                     'primary_metric':'Paired complete-session R difference under common 1R/5-bar research exits',
+                     'minimum_effect':0.05,'decision_rule':'Mean paired delta >= 0.05 R/session; session-cluster lower interval > 0; all guardrails and reviewed PR required',
+                     'review_schedule':'No promotion before 30 subsequent sessions and 100 resolved nonoverlapping episodes; fixed checkpoint review',
+                     'cost_and_delay_stress':'0, $0.02, $0.05 per share per side and one extra 3m bar entry delay',
+                     'automatic_promotion':False,'outcome_event':'Target before original stop, next-open reference, stop-first ties, five 3m bars or close',
+                     'rule_delta':'Fresh ATR 23.6 crossing with 13/48 confirmation only' if rule['kind']=='atr_cross' else 'Exact baseline replay diagnostic; freshness is never relaxed'}
+                existing.append(rec)
+                changes.append({'date':stamp[:10],'at':stamp,'type':'SHADOW_RULE_FROZEN','candidate_id':cid,
+                                'rule_set':rule,'baseline_unchanged':True,'promotion':'NOT_PROMOTED'})
+    path.write_text(''.join(json.dumps(x,separators=(',',':'))+'\n' for x in existing))
+
+
+def review(data,state,now):
+    date=now.astimezone(ET).date().isoformat();stamp=now.isoformat()
+    calendar=read(ROOT/'hosting/session-calendar.json',{'sessions':{}})['sessions'];session=calendar.get(date)
+    if not session or now<dt(session['close']):
+        return {'date':date,'skipped':'No completed exchange session for this ET date'}
+    market=read(data/'market.json',{});raw=lines(state/'decisions'/f'{date}.jsonl')
+    # First observation wins. Later revisions never overwrite issued evidence.
+    unique={}
+    for row in raw: unique.setdefault(row['id'],row)
+    captures=lines(state/'captures'/f'{date}.jsonl')
+    observed=[];late=[];alarms=[];instruments=[]
+    def alarm(kind,symbol,detail):
+        alarms.append({'type':kind,'symbol':symbol,'at':stamp,'session_date':date,'detail':detail,
+                       'interpretation':'ENGINE CHECK / diagnostic, not proof of malfunction or a missed profitable trade'})
+    expected=int((dt(session['close'])-dt(session['open'])).total_seconds()/180)
+    for symbol in ('SPY','SPX','AAPL','GOOGL'):
+        snap=market.get('symbols',{}).get(symbol,{})
+        archive=read(state/'bars'/date/f'{symbol}.json',None)
+        bars=(archive or snap).get('bars',[])
+        bars=[b for b in bars if dayof(b['time'])==date and all(finite(b.get(k)) for k in ('high','low','close'))]
+        source=(archive or {}).get('source',snap.get('health',{}).get('source',{})).get('feed_fingerprint')
+        own=[r for r in unique.values() if r['symbol']==symbol and r.get('session_date')==date and (not source or r.get('source_fingerprint')==source)]
+        seen=[r for r in own if r.get('observation_kind')=='OBSERVED'];backfill=[r for r in own if r.get('observation_kind')=='REPLAY_LATE']
+        observed.extend(grade(r,bars,session['close']) for r in seen);late.extend(grade(r,bars,session['close']) for r in backfill)
+        atr=next((r.get('atr14') for r in own if finite(r.get('atr14')) and r['atr14']>0),snap.get('market',{}).get('atr14'))
+        move=(max(b['high'] for b in bars)-min(b['low'] for b in bars))/atr if bars and finite(atr) and atr>0 else None
+        wait=sum(r['decision']=='WAIT' for r in seen);entries=[r for r in own if r['decision'] in ('CALL','PUT')]
+        if len(seen)==expected and wait==expected and move is not None and move>=1:
+            alarm('ENGINE_ALL_DAY_WAIT',symbol,f'ENGINE CHECK: all-day WAIT while {symbol} moved {move:.2f} ATR; observed WAIT n={wait}/{expected}. Inspect rule gates; WAIT may be correct.')
+        elif own and len(own)==expected and not entries and move is not None and move>=1:
+            alarm('WAIT_REPLAY_CHECK',symbol,f'Replayed baseline WAIT on {len(own)} bars while range was {move:.2f} ATR; only {len(seen)}/{expected} observed within freshness. Not an observed all-day-WAIT claim.')
+        if len(own)<expected or len(bars)<expected:
+            alarm('REVIEW_DATA_INCOMPLETE',symbol,f'Ledger n={len(own)}/{expected}; recorded bars n={len(bars)}/{expected}. No current-state WAIT proxy is used.')
+        stale=[c for c in captures if c['symbol']==symbol and c['state'] in ('UNAVAILABLE','STALE')]
+        health=snap.get('health',{})
+        if stale or snap.get('session',{}).get('status')=='OPEN' and (not finite(health.get('age_seconds')) or health['age_seconds']>225):
+            alarm('STALE_FEED',symbol,f'Stale/unavailable capture observations n={len(stale)}; retain DATA HOLD. Missing 1m state is reported separately.')
+        weight_values={json.dumps(r['evidence_score'],sort_keys=True) for r in seen}
+        if len(seen)>=20 and len(weight_values)==1 and len({r['close'] for r in seen})>1:
+            alarm('WEIGHTS_STUCK',symbol,f'Same allocation across observed bars n={len(seen)} despite changing price. A persistent trend can also explain this; recompute before changing rules.')
+        instruments.append({'symbol':symbol,'n_bars':len(bars),'expected_bars':expected,'ledger_n':len(own),
+                            'observed_n':len(seen),'replay_late_n':len(backfill),'wait_n':wait,'n_signals':len(entries),
+                            'move_atr':move,'coverage_complete':len(own)==expected and len(bars)==expected,
+                            'one_minute_state':snap.get('one_minute_health',{}).get('state','UNAVAILABLE'),
+                            'direction_counts':dict(Counter(r['decision'] for r in entries))})
+    archive_reviews=state/'reviews';archive_reviews.mkdir(parents=True,exist_ok=True)
+    previous=[read(p,{}) for p in sorted(archive_reviews.glob('*.json')) if p.stem<date]
+    for item in instruments:
+        rows=[i for r in previous[-4:] for i in r.get('instruments',[]) if i.get('symbol')==item['symbol'] and i.get('coverage_complete')]+([item] if item['coverage_complete'] else [])
+        if len(rows)>=2 and all(i['n_signals']==0 for i in rows[-2:]):
+            alarm('ZERO_SETUPS_2_SESSIONS',item['symbol'],'Zero new baseline setups in two fully covered sessions; inspect constraints and market context.')
+        counts=Counter();[counts.update(i.get('direction_counts',{})) for i in rows]
+        if len(rows)>=5 and sum(counts.values())>=20 and (not counts['CALL'] or not counts['PUT']):
+            alarm('ONE_SIDED_CALLS',item['symbol'],f'One-sided baseline entries across sessions n={len(rows)}, signals n={sum(counts.values())}. Test symmetry; trend bias alone is not an error.')
+    # Manual observations retain source time AND receipt time. Later edits cannot
+    # become pre-close predictors. Lesson paraphrases may be added after close.
+    inputs=[]
+    for p in sorted((state/'inputs').glob('*.json')) if (state/'inputs').exists() else []:
+        v=read(p,{})
+        if dayof(v['received_at'])==date:
+            inputs.append({'input_id':v['input_id'],'symbol':v['symbol'],'asof':v['asof'],'received_at':v['received_at'],
+                           'available_before_close':dt(v['received_at'])<=dt(session['close']) and dt(v['asof'])<=dt(session['close']),
+                           'contracts_n':len(v.get('leaderboard',[])),'gex_nodes_n':len((v.get('gex') or {}).get('nodes',[])),
+                           'max_pain':v.get('max_pain'),'lessons':v.get('lessons',[])})
+    signals=[r for r in observed if r['decision'] in ('CALL','PUT')];waits=[r for r in observed if r['decision']=='WAIT']
+    scored=[r for r in signals if r['grade']!='UNRESOLVED'];scored_wait=[r for r in waits if r['grade']!='UNRESOLVED']
+    evidence=rate(sum(r['grade']=='FAVORABLE_EXCURSION_DOMINANT' for r in scored),len(scored))
+    missed=rate(sum(r['grade']=='MISSED_MOVE_CONTEXT' for r in scored_wait),len(scored_wait))
+    lessons=[x for v in inputs for x in v['lessons']]
+    report={'schema_version':1,'session_date':date,'reviewed_at':stamp,'signal_count':len(signals),'wait_count':len(waits),
+            'graded_count':len(scored),'sample_n':len(scored),'unresolved_count':len(signals)-len(scored),
+            'favorable_excursion_dominant_rate':evidence['rate'],'favorable_excursion_dominant_interval_95_wilson':evidence['wilson_95'],
+            'signal_evidence':evidence,'wait_missed_move_evidence':missed,'signals':signals,'waits':waits,
+            'replay_late_count':len(late),'replay_late_grades':late,'instruments':instruments,'manual_inputs':inputs,
+            'manual_inputs_n':len(inputs),'lesson_candidates':lessons,'lesson_candidates_n':len(lessons),
+            'lesson':f'Observed signals n={len(signals)}; WAIT decisions n={len(waits)}; late replay rows n={len(late)} kept separate. Public manual inputs n={len(inputs)}, lesson candidates n={len(lessons)}. No live rule changed.',
+            'wait_assessment':'Counts come only from immutable per-bar observations. OBSERVED requires first receipt within 225s of bar close, not an executable next-open fill. Late reconstructions are separate. WAIT is no new managed entry, not a claim that price will be flat.',
+            'shadow_evidence_path':'shadow-evidence.json','alarms_created':alarms,
+            'note':'Next-five-bars excursion comparison, not first-touch ordering or options P&L. WAIT missed move means >=0.25 daily ATR excursion, not a profitable opportunity.'}
+    changes=read(data/'changelog.json',{'schema_version':1,'entries':[]})
+    register_challengers(data,alarms,stamp,changes['entries'])
+    write(archive_reviews/f'{date}.json',report)
+    # Public page is small; full every-bar reviews stay in dashboard-data/state.
+    summaries=[]
+    for p in sorted(archive_reviews.glob('*.json'))[-10:]:
+        r=read(p,{})
+        summaries.append({k:v for k,v in r.items() if k not in ('signals','waits','replay_late_grades','manual_inputs','alarms_created')})
+    alarmdoc=read(data/'health-alarms.json',{'schema_version':1,'alarms':[]})
+    old=[x for x in alarmdoc['alarms'] if x.get('session_date',x.get('at','')[:10])!=date]
+    alarmdoc['alarms']=(old+alarms)[-100:];changes['entries']=changes['entries'][-100:]
+    write(data/'eod-review.json',{'schema_version':1,'sessions':summaries,'archive':'state/reviews/'})
+    write(data/'health-alarms.json',alarmdoc);write(data/'changelog.json',changes)
+    return {'date':date,'signal_n':len(signals),'wait_n':len(waits),'replay_late_n':len(late),
+            'alarm_n':len(alarms),'sample_n':evidence['n'],'wilson_95':evidence['wilson_95'],
+            'challenger_candidates_created':len(alarms),'live_rules_changed':False}
+
+def main():
+    p=argparse.ArgumentParser();p.add_argument('--data-dir',type=Path,default=ROOT/'site/data')
+    p.add_argument('--state-dir',type=Path,default=ROOT/'.dashboard-state/state');p.add_argument('--now')
+    a=p.parse_args();now=dt(a.now) if a.now else datetime.now(timezone.utc)
+    if now.tzinfo is None: raise ValueError('Aware timestamp required')
+    print(json.dumps(review(a.data_dir,a.state_dir,now.astimezone(timezone.utc))))
 if __name__=='__main__': main()

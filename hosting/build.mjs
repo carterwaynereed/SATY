@@ -7,7 +7,7 @@ import {createHash} from 'node:crypto';
 import {createWorker} from './worker.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const types = {'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.txt':'text/plain; charset=utf-8'};
+const types = {'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.json':'application/json; charset=utf-8','.jsonl':'application/x-ndjson; charset=utf-8','.svg':'image/svg+xml','.txt':'text/plain; charset=utf-8'};
 const assets = {};
 async function collect(directory, prefix = '') {
   for (const entry of (await readdir(directory, {withFileTypes:true})).sort((a,b)=>a.name.localeCompare(b.name))) {
@@ -51,6 +51,7 @@ const module = await import('data:text/javascript;base64,'+Buffer.from(output).t
 if (typeof module.default?.fetch !== 'function') throw new Error('Worker must export default.fetch');
 const response = await module.default.fetch(new Request('https://example.test/'), {});
 if (response.status !== 200 || !(await response.text()).includes('Saty')) throw new Error('Worker asset smoke test failed');
+if(process.argv.includes('--check')){console.log(JSON.stringify({checked:true,assets:Object.keys(assets).length,worker_bytes:Buffer.byteLength(output)}));process.exit(0);}
 const manifest = JSON.parse(await readFile(join(root,'.openai/hosting.json'),'utf8'));
 if (!manifest.project_id || manifest.static || manifest.r2 !== 'BUCKET') throw new Error('Preserve the existing Site ID and R2 BUCKET binding; no static manifest for this Worker');
 await mkdir(join(root,'dist/server'),{recursive:true});
