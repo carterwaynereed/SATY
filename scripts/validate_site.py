@@ -1,9 +1,12 @@
 """Validate the public payload and the frozen input version without network access."""
 from datetime import datetime
+from html.parser import HTMLParser
 import hashlib
 import json
 import math
 from pathlib import Path
+import re
+from urllib.parse import unquote, urlsplit
 from summarize_learning import summarize
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,15 +36,62 @@ def aware(value):
     assert ts.tzinfo is not None, f'Naive timestamp: {value}'
 
 
+class HomeAssets(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.refs = []
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == 'script' and attrs.get('src'):
+            self.refs.append(attrs['src'])
+        elif tag == 'link' and 'stylesheet' in attrs.get('rel', '').split():
+            self.refs.append(attrs['href'])
+
+
+def home_dependencies(site):
+    """Count the buildless home's local HTML/CSS/JS dependency graph once."""
+    site = site.resolve()
+    seen, pending = set(), [site / 'index.html']
+    while pending:
+        path = pending.pop()
+        if path in seen:
+            continue
+        assert path.is_relative_to(site), f'Home asset escapes site: {path}'
+        assert path.is_file(), f'Missing home asset: {path.relative_to(site)}'
+        seen.add(path)
+        if path.suffix not in ('.html', '.css', '.js', '.mjs'):
+            continue
+        source = path.read_text(encoding='utf-8')
+        if path.suffix == '.html':
+            parser = HomeAssets()
+            parser.feed(source)
+            refs = parser.refs
+        elif path.suffix == '.css':
+            refs = re.findall(r'url\(\s*[\'\"]?([^\'\"\s)]+)', source)
+            refs += re.findall(r'@import\s+[\'\"]([^\'\"]+)', source)
+        else:
+            # Static ES module imports/re-exports are eagerly loaded by browsers.
+            refs = re.findall(r'(?:^|;)\s*(?:import|export)\s*(?:[\w*$,\s{}]*?\bfrom\s*)?[\'\"]([^\'\"]+)', source, re.MULTILINE)
+        for ref in refs:
+            if ref.startswith(('data:', '#')):
+                continue
+            url = urlsplit(ref)
+            assert not url.scheme and not url.netloc, f'Unbudgeted external home asset: {ref}'
+            relative = unquote(url.path)
+            if not relative:
+                continue
+            dependency = (site / relative.lstrip('/') if relative.startswith('/') else path.parent / relative).resolve()
+            pending.append(dependency)
+    return seen
+
+
 def validate_payload(site):
-    # The archive is a separate page. Keep the actual home load lean while
-    # budgeting the complete archive plus freshly generated four-ticker data.
-    home_files = ('index.html', 'assets/momentum.css', 'momentum-dashboard.mjs',
-                  'momentum-view.mjs', 'uw-view.mjs', 'assets/app.js',
-                  'session-mode.mjs', 'outcome-stats.mjs')
-    home = sum((site / name).stat().st_size for name in home_files)
+    # The home now includes the full reference desk. Keep its eager dependencies
+    # bounded separately from the archive and freshly generated market data.
+    home = sum(path.stat().st_size for path in home_dependencies(site))
     payload = sum(p.stat().st_size for p in site.rglob('*') if p.is_file())
-    assert home < 75_000, f'Momentum home assets exceeded 75 KB: {home} bytes'
+    assert home < 240_000, f'Momentum and reference desk home assets exceeded 240 KB: {home} bytes'
     assert payload < 850_000, f'Complete site and research archive exceeded 850 KB: {payload} bytes'
     return payload, home
 

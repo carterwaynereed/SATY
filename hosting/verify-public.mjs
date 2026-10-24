@@ -17,7 +17,8 @@ const checkCORS=response=>{
 const index=await request(home+'/');
 assert.equal(index.status,200,'Anonymous home must open without a sign-in redirect');
 const html=await index.text();
-assert.match(html,/Momentum Tracker/);
+assert.match(html,/Momentum Tracker/i);
+for(const id of ['momentum-card','chart','levels','indicator-summary','signals','journal','learning'])assert.ok(html.includes('id=\"'+id+'\"'),'Restored panel missing: '+id);
 const routes={};let market;
 for(const route of ['/api/market','/api/evidence']){
   const response=await request(home+route,{headers:{Origin:origin}});
@@ -49,7 +50,7 @@ for(const [route,options] of [
 }
 const wrongOrigin=await request(home+'/api/market',{headers:{Origin:'https://example.invalid'}});
 assert.equal(wrongOrigin.headers.get('access-control-allow-origin'),null);await wrongOrigin.body?.cancel();
-const paths=['index.html','momentum-dashboard.mjs','assets/momentum.css','details.html','assets/app.js'];
+const paths=['index.html','desk.mjs','momentum-dashboard.mjs','assets/momentum.css','assets/dashboard.css','details.html','assets/app.js'];
 const assets=await Promise.all(paths.map(async path=>{
   const response=await request(home+'/'+path);assert.equal(response.status,200,path);
   const remote=await response.text(),local=await readFile(new URL('../site/'+path,import.meta.url),'utf8');

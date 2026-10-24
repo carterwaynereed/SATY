@@ -29,6 +29,34 @@ test('durable admission consumes one global slot, strips raw history and legacy 
  assert.equal(bucket.record(MOMENTUM_EVIDENCE_KEY).records[day].id,signal.id);assert.equal(result.momentum.stats.issued_n,1);
 });
 
+test('already computed models survive only as dated research references with no raw or private payload',async()=>{
+ const b=bundle(),s=b.symbols.SPY;s.generated_at=iso(now);s.health.source.feed_fingerprint='sha256:test-source';
+ const trade={id:'old-model',entry:100,stop:97,target:{label:'Old target',price:104},live:true,journal:{private:'never public'},raw_data:[1,2,3]};
+ s.approved_rules={version:'old-score',trades:[trade],position:trade,pending:{side:1,decision_at:iso(now)},entries_today:2,decisions:[{secret:'raw decision ledger'}],history:[{close:1}],private_journal:['private'],token:'private'};
+ s.conservative_rules={version:'old-no-runner',trades:[],runner_enabled:false};
+ s.level_bounce={version:'old-bounce',reported:{n:null,closed_green_rate:.47,profit_factor:.92},trades:[trade],vix:{close:18,ema21:19,source_token:'private'}};
+ s.live_alerts={version:'old-alerts',trades:[{...trade,setup_id:'BOX_BREAK'}],stats:{n:1,target_hit_rate:0},holds:[]};
+ b._reservations=[trade];const original=JSON.stringify(b);
+ const x=await make(candidate())(b,new Bucket()),refs=x.symbols.SPY.reference_models;
+ assert.deepEqual(Object.keys(refs),['approved_rules','conservative_rules','level_bounce','live_alerts']);
+ for(const [key,model] of Object.entries(refs)){
+  assert.equal(x.symbols.SPY[key],undefined);assert.equal(model.live,false);assert.equal(model.research_only,true);assert.equal(model.signal_only,true);assert.equal(model.session_date,day);
+  assert.equal(model.provenance.kind,'CONFIRMED_BAR_REPLAY');assert.equal(model.provenance.observed_at,iso(now));assert.equal(model.provenance.source_fingerprint,'sha256:test-source');
+ }
+ assert.equal(refs.approved_rules.position.entry,100);assert.equal(refs.approved_rules.position.live,false);assert.equal(refs.approved_rules.pending.research_only,true);assert.equal(refs.approved_rules.trades[0].target.price,104);
+ assert.equal(refs.approved_rules.decisions,undefined);assert.equal(refs.approved_rules.history,undefined);assert.equal(refs.approved_rules.private_journal,undefined);assert.equal(refs.approved_rules.token,undefined);
+ assert.equal(refs.approved_rules.trades[0].journal,undefined);assert.equal(refs.approved_rules.trades[0].raw_data,undefined);assert.equal(refs.level_bounce.vix.source_token,undefined);assert.equal(x._reservations,undefined);
+ assert.equal(refs.level_bounce.reported.closed_green_rate,.47);assert.equal(refs.live_alerts.trades[0].setup_id,'BOX_BREAK');
+ assert.equal(x.momentum.entries_today,1);assert.equal(JSON.stringify(b),original);
+});
+
+test('reference restoration does not fabricate absent retired models or call an old admission path',async()=>{
+ const b=bundle();for(const s of Object.values(b.symbols)){delete s.level_bounce;s.reference_models={live_alerts:{trades:[{id:'untrusted-retained'}]}};}
+ const bucket=new Bucket(),x=await make(null)(b,bucket);
+ for(const s of Object.values(x.symbols)){assert.equal(s.reference_models.level_bounce,undefined);assert.equal(s.reference_models.live_alerts,undefined);}
+ assert.equal(x.momentum.entries_today,0);assert.ok(!bucket.writes.some(k=>k.includes('live-alerts')||k.includes('level-bounce')));
+});
+
 test('two independently initialized readers cannot race into two daily signals',async()=>{
  const bucket=new Bucket(),spy=candidate(),aapl=candidate('AAPL'),r1=make(spy),r2=make(aapl);
  const [a,b]=await Promise.all([r1(bundle(),bucket),r2(bundle(),bucket)]);

@@ -1,8 +1,11 @@
 import {outcomeStats,metricText} from './outcome-stats.mjs';
+import {renderMomentumDashboard} from './momentum-dashboard.mjs';
+import {renderLiveAlerts} from './live-alert-panel.mjs';
+import {renderBouncePanel} from './level-bounce-panel.mjs';
 import {chartLevels,drawChartOverlays} from './chart-overlays.mjs';
 import {renderRadar} from './radar.mjs';
 import {scoreDirection,renderPolicyReview} from './approved-rules.mjs';
-import {exitModel} from './exit-panel.mjs';
+import {renderExitPanel,researchSnapshot,momentumChartModel} from './exit-panel.mjs';
 import {sessionMode,shouldPoll} from './session-mode.mjs';
 import {analyze,SYMBOLS,journalStats,eastern} from './engine.mjs';
 import {allocateEvidenceWeights} from './weights.mjs';
@@ -19,9 +22,10 @@ const endpoints=marketEndpoints(location.hostname),homeHost=endpoints.sameOrigin
 const localServer=['localhost','127.0.0.1'].includes(location.hostname);
 const readMarket=createMarketReader(),readEvidence=createEvidenceReader();
 let showAllChartLevels=false;
+const continuousDesk=!!$('momentum-card');
 let snapshot=null,evidence=null,uw=null,learning=null,fetchFailed=false,fetching=false,selected='SPY',view='saty',page='desk',drawModel=null;
 let extendedHours={},exitSelections={},manualInputs=null,lastPoll=0;
-let markets={},evidencePack=null,metadataReadAt=0,firstMarketRead=true,requestGeneration=0;
+let markets={},marketBundle=null,evidencePack=null,metadataReadAt=0,firstMarketRead=true,requestGeneration=0;
 let state={feeds:{symbols:{}},journal:[],context:{}},notes=[],paperConnected=false,paperMessage='Private journal has not been read.',metadataIssues=[],metadataFailures=new Set();
 try{const saved=JSON.parse(localStorage.getItem('saty-snapshot'));if(validPaperSnapshot(saved))state=saved;const savedNotes=JSON.parse(localStorage.getItem('saty-notes'));if(Array.isArray(savedNotes))notes=savedNotes.filter(n=>n&&typeof n==='object'&&typeof n.text==='string'&&safeHref(n.url));}catch{}
 const toast=message=>{put('toast',message);$('toast').hidden=false;setTimeout(()=>$('toast').hidden=true,6000);};
@@ -34,14 +38,16 @@ function selectedUW(){return uw?.by_symbol?.[selected]??(uw?.symbol===selected?u
 function manualLevels(){return metadataFailures.has('uw')?[]:manualTickerLevels(selectedUW(),selected);}
 function selectTicker(symbol){if(!SYMBOLS.includes(symbol))return;selected=symbol;$('ticker-select').value=symbol;snapshot=markets[symbol]??null;evidence=evidencePack?.by_symbol?.[symbol]??(symbol==='SPY'&&!evidencePack?.by_symbol?evidencePack:null);renderDesk();renderSignals();renderEvidence();renderUW();}
 function health(){return firstMarketRead&&!snapshot?{state:'CONNECTING',tone:'hold',reason:'Opening the TradingView public chart feed…'}:snapshotHealth(snapshot,Date.now(),fetchFailed);}
-function maybeEodDefault(){
- const s=snapshot?.session,now=Date.now();
- if(!location.hash&&!new URLSearchParams(location.search).has('view')&&page==='desk'&&s?.date===eastern(now).date&&now>=Date.parse(s.close)-1800000&&now<Date.parse(s.close))location.replace(new URL('eod.html',location.href));
-}
 function renderDesk(){
- // Archived workspace: never redirect or issue live strategy instructions.
- renderRadar($('direction-radar'),{symbols:markets},{selected,onSelect:symbol=>{selectTicker(symbol);document.querySelector('[data-tab="desk"]').click();}});
- const exit=exitModel(snapshot?{...snapshot,health:{...snapshot.health,state:'CLOSED'}}:null,{selectedId:exitSelections[selected]});
+ // One controller supplies both the momentum overview and the full workspace.
+ // Legacy models remain explicitly reference-only, even with fresh live bars.
+ renderMomentumDashboard(marketBundle,{failed:fetchFailed,loading:firstMarketRead,selected,uw,uwFailed:metadataFailures.has('uw'),onSelect:selectTicker});
+ renderRadar($('direction-radar'),{symbols:markets},{selected,onSelect:symbol=>{selectTicker(symbol);openPage('desk');}});
+ const reference=researchSnapshot(snapshot),onReplaySelect=id=>{exitSelections[selected]=id;renderDesk();};
+ renderLiveAlerts($('live-alerts'),snapshot,{referenceOnly:true,onSelect:onReplaySelect});
+ renderBouncePanel($('level-bounce'),snapshot,{referenceOnly:true,onSelect:onReplaySelect});
+ const exit=renderExitPanel($('exit-panel'),snapshot,{referenceOnly:true,selectedId:exitSelections[selected],failed:fetchFailed,extended:extendedHours[selected],manual:manualInputs?.by_symbol?.[selected],onSelect:onReplaySelect});
+ const chartExit=!exitSelections[selected]?momentumChartModel(marketBundle?.momentum,snapshot)??exit:exit;
 
  const h=health(),blocked=h.tone==='hold'||h.state==='DATED SNAPSHOT',m=snapshot?.market||{},r=snapshot?.ribbon||{},s=snapshot?.session||{},source=snapshot?.health?.source||{};
  const analyses=paperAnalyses(),a=analyses.find(x=>x.symbol===selected),spy=analyses.find(x=>x.symbol==='SPY');
@@ -64,14 +70,14 @@ function renderDesk(){
  put('source-label',saty?`${source.provider||'Source unavailable'} · ${source.source_id||'feed unverified'} · ${finite(source.delay_seconds)?`${source.delay_seconds}s reported delay`:'delay unknown'} · public chart feed · confirmed 3m bars · refresh every 15s.`:`Original paper scanner · ${state.feeds?.provider||state.feeds?.symbols?.[selected]?.provider||'private/imported feed'} · ${paperConnected?'connected':'retained / imported'} · 90-second freshness gate.`);
  const conditions=saty?list(snapshot?.plan?.next_conditions):[],p=saty?null:a.plan;
  put('plan-model',saty?'ARCHIVED RESEARCH':'DESK v0.1 · PAPER');
- if(saty&&snapshot?.approved_rules){const policy=snapshot.approved_rules;replace('trade-plan',[node('p','Confirmed 3m flip to CALL ≥60% or PUT ≥60%; next available bar open.','description'),node('p',`Trades today: ${policy.entries_today} · No new entries after 3 PM`),node('p',policy.cooldown_until&&Date.parse(policy.cooldown_until)>Date.now()?`Cooldown until ${time(policy.cooldown_until)} ET`:'Cooldown ready')]);}
+ if(saty&&reference?.approved_rules){const policy=reference.approved_rules;replace('trade-plan',[node('p','Archived score model: confirmed 3m flip to CALL ≥60% or PUT ≥60%, with a modeled next-open entry.','description'),node('p',`Recorded replay entries: ${policy.entries_today??list(policy.trades).length} · reference only`),node('p','These observations do not consume or expand the Momentum Tracker daily limit.')]);}
  else if(saty){replace('trade-plan',conditions.length?conditions.flatMap(c=>{const row=node('div');row.append(node('span',c.label||'Reference level'),node('strong',number(c.price)));if(c.note)row.append(node('small',c.note));return [row];}):[node('div',blocked?h.reason:'No confirmed next-condition map is available.','description')]);}
  else if(p){replace('trade-plan',[node('div',`${p.setup} · ${a.decision==='WAIT'||!paperConnected?'Entry blocked':'Paper candidate'}`,'description'),...[['Reference entry',p.entry],['Invalidation',p.stop],['Next level',p.target],['Reward / risk',p.rr]].map(([k,v])=>{const row=node('div');row.append(node('span',k),node('strong',number(v)+(k==='Reward / risk'?'R':'')));return row;})]);}
  else replace('trade-plan',[node('div','No qualified paper setup. Wait for aligned timeframes and a fresh closed-candle trigger.','description')]);
  $('paper').hidden=true;$('paper').disabled=true;
  put('paper','Queue local paper study');
  put('study-status',saty?'Signal-only. View completed-candle observations in Setups & evidence.':localServer&&paperConnected?'The local scanner can queue eligible simulated studies.':'This page displays the private paper journal. New studies require the original local scanner; no study runs from this button.');
- put('plan-note','Archived research only. The home Momentum Tracker is the only live signal policy. Level Bounce, box-break and prior score-based alerts are retired from live use.');
+ put('plan-note','Research context only. The Momentum Tracker is the only live signal policy. Level Bounce, standalone box-break and prior score-based alerts remain retired from live use.');
  put('level-basis',saty?'SATY ATR · PREVIOUS CLOSE':'DESK v0.1 · PRIOR / PREMARKET / OPENING RANGE');
  const references=saty?[['Previous close',m.prev_close],['Daily ATR14',m.atr14],['Session VWAP',m.vwap]]: [['Paper VWAP',a.vwap],['Entry ATR',a.atrEntry]];
  replace('market-reference',references.map(([k,v])=>{const el=node('span',`${k} `);el.append(node('b',number(v)));return el;}));
@@ -83,22 +89,23 @@ function renderDesk(){
  put('phase-note',`${nice(r.price_position)} ribbon · phase slope ${finite(r.phase_slope)?signed(r.phase_slope):nice(r.phase_slope)}. Frozen RTH variant; context does not alter the paper scanner.`);
  const features=saty?list(snapshot?.evidence_weights?.features):list(a.features),inSession=Boolean(snapshot?.session?.open&&snapshot?.session?.close&&Date.now()>=Date.parse(snapshot.session.open)&&Date.now()<Date.parse(snapshot.session.close));
  const scores=allocateEvidenceWeights(features,{fresh:saty?h.tone==='current':paperConnected&&finite(a.ageSeconds)&&a.ageSeconds<=90,inSession});
- if(saty){put('decision','RESEARCH');put('signal-tag','Archived models · no live signals');put('plan-summary','Use the home Momentum Tracker for the one daily signal. This workspace retains charts, evidence and the private journal.');}
+ if(saty){put('decision','CONTEXT');put('signal-tag','Research models · no additional live signals');put('plan-summary','The Momentum Tracker carries the one daily signal. These charts, indicators and replay observations provide context.');}
  for(const key of ['call','put','wait'])put(`${key}-score`,firstMarketRead&&!snapshot?'—':`${scores[key]}%`);
  replace('scorebar',[['call','var(--lime)'],['put','var(--red)'],['wait','#778571']].map(([key,color])=>{const el=node('i');el.style.width=`${scores[key]}%`;el.style.background=color;return el;}));
  put('weight-model',saty?`${selected} · SATY rows`:'DESK v0.1 rows');put('weight-status',scores.reason);put('weight-math',scores.math);$('scores-block').title=scores.math;
  replace('features',scores.features.map(x=>{const el=node('div',undefined,'feature');el.append(node('span',x.label),node('span',`${x.direction>0?'↑ CALL':x.direction<0?'↓ PUT':'— WAIT'} · ${x.weight} pts/100`,x.direction>0?'bull':x.direction<0?'bear':'neutral'),node('small',x.detail));return el;}));
  replace('paper-gates',(saty?[`Feed: ${h.state}`,`Entry eligibility: ${nice(snapshot?.plan?.state||'WAIT')}. Entry gates do not rewrite fresh directional weights.`,...list(snapshot?.plan?.conflicts)]:[...(!paperConnected?['Private paper feed unavailable or imported; no queue permitted.']:[]),...a.gates]).map(x=>node('li',x)));
- drawModel=saty?{bars:list(snapshot?.bars).map(b=>({...b,o:b.open,h:b.high,l:b.low,c:b.close,start:b.time,ema13:b.ema8})),levels:chartLevels(snapshot,exit,{all:showAllChartLevels,extra:manualLevels()})}: {bars:list(a.chart),levels:[]};draw();
+ drawModel=saty?{bars:list(snapshot?.bars).map(b=>({...b,o:b.open,h:b.high,l:b.low,c:b.close,start:b.time,ema13:b.ema8})),levels:chartLevels(snapshot,chartExit,{all:showAllChartLevels,extra:manualLevels()})}: {bars:list(a.chart),levels:[]};draw();
 }
 function draw(){const c=$('chart'),rect=c.getBoundingClientRect(),w=rect.width,h=rect.height;if(w<1||h<1)return;const dpr=Math.min(window.devicePixelRatio||1,2);c.width=w*dpr;c.height=h*dpr;const ctx=c.getContext('2d');ctx.scale(dpr,dpr);const bars=list(drawModel?.bars).filter(b=>[b.o,b.h,b.l,b.c].every(finite));$('chart-empty').style.display=bars.length?'none':'flex';if(!bars.length)return;
  const pad={l:3,r:Math.min(132,w*.38),t:18,b:26},pw=w-pad.l-pad.r,ph=h-pad.t-pad.b;const prices=[...bars.flatMap(b=>[b.h,b.l,b.ema13,b.ema21,b.vwap]),...list(drawModel.levels).filter(l=>l.exitRole).map(l=>l.price)].filter(finite);let low=Math.min(...prices),high=Math.max(...prices),spread=high-low||1;low-=spread*.1;high+=spread*.1;const y=v=>pad.t+(high-v)/(high-low)*ph,x=i=>pad.l+(i+.5)*pw/bars.length;
- ctx.font='10px Segoe UI';for(let i=0;i<=4;i++){const value=low+(high-low)*i/4,py=y(value);ctx.strokeStyle='#30372e';ctx.beginPath();ctx.moveTo(pad.l,py);ctx.lineTo(w-pad.r,py);ctx.stroke();ctx.fillStyle='#93a094';if(!list(drawModel.levels).length)ctx.fillText(value.toFixed(2),w-pad.r+8,py+3);}
+ const light=continuousDesk||document.documentElement.style.colorScheme==='light'||document.body.classList.contains('dashboard'),grid=light?'#e1e7eb':'#30372e',label=light?'#586874':'#93a094';
+ ctx.font='11px Segoe UI';for(let i=0;i<=4;i++){const value=low+(high-low)*i/4,py=y(value);ctx.strokeStyle=grid;ctx.beginPath();ctx.moveTo(pad.l,py);ctx.lineTo(w-pad.r,py);ctx.stroke();ctx.fillStyle=label;if(!list(drawModel.levels).length)ctx.fillText(value.toFixed(2),w-pad.r+8,py+3);}
 
- const width=Math.max(1,Math.min(7,pw/bars.length*.65));bars.forEach((b,i)=>{ctx.strokeStyle=ctx.fillStyle=b.c>=b.o?'#a8cb83':'#bf826f';ctx.beginPath();ctx.moveTo(x(i),y(b.h));ctx.lineTo(x(i),y(b.l));ctx.stroke();ctx.fillRect(x(i)-width/2,Math.min(y(b.o),y(b.c)),width,Math.max(1,Math.abs(y(b.o)-y(b.c))));});
- for(const [key,color] of [['ema13','#c2ed88'],['ema21','#85b6dd'],['vwap','#c6a8df']]){ctx.strokeStyle=color;ctx.lineWidth=1.3;ctx.beginPath();let started=false;bars.forEach((b,i)=>{if(!finite(b[key]))return;if(!started){ctx.moveTo(x(i),y(b[key]));started=true;}else ctx.lineTo(x(i),y(b[key]));});ctx.stroke();}ctx.lineWidth=1;
+ const width=Math.max(1,Math.min(7,pw/bars.length*.65));bars.forEach((b,i)=>{ctx.strokeStyle=ctx.fillStyle=b.c>=b.o?(light?'#16754d':'#a8cb83'):(light?'#b54843':'#bf826f');ctx.beginPath();ctx.moveTo(x(i),y(b.h));ctx.lineTo(x(i),y(b.l));ctx.stroke();ctx.fillRect(x(i)-width/2,Math.min(y(b.o),y(b.c)),width,Math.max(1,Math.abs(y(b.o)-y(b.c))));});
+ for(const [key,color] of [['ema13',light?'#378d55':'#c2ed88'],['ema21',light?'#3575ae':'#85b6dd'],['vwap',light?'#8a61a5':'#c6a8df']]){ctx.strokeStyle=color;ctx.lineWidth=1.3;ctx.beginPath();let started=false;bars.forEach((b,i)=>{if(!finite(b[key]))return;if(!started){ctx.moveTo(x(i),y(b[key]));started=true;}else ctx.lineTo(x(i),y(b[key]));});ctx.stroke();}ctx.lineWidth=1;
  drawChartOverlays(ctx,list(drawModel.levels),{left:pad.l,right:w-pad.r,width:w,top:pad.t,bottom:h-pad.b,y});
- for(let i=0;i<4;i++){const j=Math.round((bars.length-1)*i/3);ctx.fillStyle='#93a094';ctx.fillText(time(bars[j].start),Math.min(w-pad.r-28,Math.max(0,x(j)-15)),h-5);}c.setAttribute('aria-label',`${bars.length} confirmed ${selected} candles. Last close ${number(bars.at(-1).c)}. ${view==='saty'?'SATY 3m RTH':'Original paper scanner'} model.`);
+ for(let i=0;i<4;i++){const j=Math.round((bars.length-1)*i/3);ctx.fillStyle=label;ctx.fillText(time(bars[j].start),Math.min(w-pad.r-28,Math.max(0,x(j)-15)),h-5);}c.setAttribute('aria-label',`${bars.length} confirmed ${selected} candles. Last close ${number(bars.at(-1).c)}. ${view==='saty'?'SATY 3m RTH':'Original paper scanner'} model.`);
 }
 function renderUW(){const uw=selectedUW(),u=uwHealth(uw),reference=metadataFailures.has('uw');put('uw-status',reference?'MANUAL / REFERENCE COPY':u.label);put('uw-meta',`${reference?'Latest manual file could not be read; retained or bundled values are reference-only and excluded from the level map. ':''}${u.reason}`);const money=v=>finite(v)?`${v<0?'−':''}$${number(Math.abs(v),0)}`:'Unavailable';
  rows('gamma-fields',[['Basis',uw?.symbol||'—'],['Regime',uw?.gamma?.regime||'—'],['Net GEX',finite(uw?.gamma?.net_gex)?`${number(uw.gamma.net_gex,0)} ${uw.gamma.units||'units missing'}`:'—'],['Zero gamma',number(uw?.gamma?.zero_gamma)],['Call / put wall',`${number(uw?.gamma?.call_wall)} / ${number(uw?.gamma?.put_wall)}`]]);
@@ -138,20 +145,21 @@ async function refreshMetadata(){
  renderPolicyReview($('policy-review'),results[4].status==='fulfilled'?results[4].value:null,results[5].status==='fulfilled'?results[5].value:null);
  manualInputs=results[3].status==='fulfilled'?results[3].value:null;metadataReadAt=Date.now();if(!firstMarketRead)selectTicker(selected);renderLearning();await refreshPaper();renderJournal();
 }
-async function refresh(){if(fetching)return;lastPoll=Date.now();fetching=true;$('refresh').disabled=true;const generation=++requestGeneration;try{
+function refreshButtons(disabled){for(const id of ['refresh','momentum-refresh'])if($(id))$(id).disabled=disabled;}
+async function refresh(){if(fetching)return;lastPoll=Date.now();fetching=true;refreshButtons(true);const generation=++requestGeneration;try{
  const marketRequest=readMarket(endpoints.market,{sameOrigin:endpoints.sameOrigin}),metadataRequest=Date.now()-metadataReadAt>=60000?refreshMetadata():Promise.resolve();
- try{const next=await marketRequest;if(!next.symbols||typeof next.symbols!=='object')throw new Error('Multi-ticker snapshot is missing');if(generation===requestGeneration){extendedHours=next.extended_hours??{};for(const symbol of SYMBOLS){const value=next.symbols[symbol];if(value&&(!markets[symbol]||Date.parse(value.generated_at)>=Date.parse(markets[symbol].generated_at)))markets[symbol]=value;}fetchFailed=false;}}
- catch{fetchFailed=true;if(!Object.keys(markets).length){try{const reference=await getJSON('data/market.json');markets=reference.symbols||{};}catch{}}}
+ try{const next=await marketRequest;if(!next.symbols||typeof next.symbols!=='object')throw new Error('Multi-ticker snapshot is missing');if(generation===requestGeneration){extendedHours=next.extended_hours??{};for(const symbol of SYMBOLS){const value=next.symbols[symbol];if(value&&(!markets[symbol]||Date.parse(value.generated_at)>=Date.parse(markets[symbol].generated_at)))markets[symbol]=value;}marketBundle={...next,symbols:markets};fetchFailed=false;}}
+ catch{fetchFailed=true;if(!Object.keys(markets).length){try{const reference=await getJSON('data/market.json');markets=reference.symbols||{};marketBundle={...reference,symbols:markets};}catch{}}}
  firstMarketRead=false;selectTicker(selected);await metadataRequest;selectTicker(selected);
- }catch(error){fetchFailed=true;firstMarketRead=false;selectTicker(selected);}finally{fetching=false;$('refresh').disabled=false;}
+ }catch(error){fetchFailed=true;firstMarketRead=false;selectTicker(selected);}finally{fetching=false;refreshButtons(false);}
 }
-for(const b of document.querySelectorAll('[data-tab]'))b.addEventListener('click',()=>{page=b.dataset.tab;for(const p of document.querySelectorAll('.page'))p.hidden=p.id!==page;for(const x of document.querySelectorAll('[data-tab]')){x.classList.toggle('active',x===b);x.setAttribute('aria-current',x===b?'page':'false');}if(page==='desk')renderDesk();window.scrollTo({top:0,behavior:'instant'});});
-for(const anchor of document.querySelectorAll('a[href="#desk"]'))anchor.addEventListener('click',()=>{document.querySelector('[data-tab="desk"]').click();});
-$('paper-sign-in').href=`${PUBLIC_DESK_ORIGIN}/signin-with-chatgpt?return_to=${encodeURIComponent('/details.html?journal=1')}`;
-if(new URLSearchParams(location.search).get('journal')==='1')document.querySelector('[data-tab="journal"]').click();
+function openPage(id){const target=$(id);if(!target?.classList.contains('page'))return;page=id;for(const p of document.querySelectorAll('.page'))p.hidden=continuousDesk?false:p.id!==page;for(const x of document.querySelectorAll('[data-tab]')){const active=x.dataset.tab===page;x.classList.toggle('active',active);x.setAttribute('aria-current',active?'page':'false');}if(continuousDesk||page==='desk')renderDesk();if(continuousDesk)target.scrollIntoView({behavior:'smooth',block:'start'});else window.scrollTo({top:0,behavior:'instant'});}
+for(const b of document.querySelectorAll('[data-tab]'))b.addEventListener('click',event=>{event.preventDefault();openPage(b.dataset.tab);});
+for(const anchor of document.querySelectorAll('a[href="#desk"]:not([data-tab])'))anchor.addEventListener('click',event=>{event.preventDefault();openPage('desk');});
+$('paper-sign-in').href=`${PUBLIC_DESK_ORIGIN}/signin-with-chatgpt?return_to=${encodeURIComponent(continuousDesk?'/?journal=1':'/details.html?journal=1')}`;
 $('ticker-select').onchange=event=>selectTicker(event.target.value);
 $('all-chart-levels').onchange=e=>{showAllChartLevels=e.target.checked;renderDesk();};
-$('view-saty').onclick=()=>{view='saty';renderDesk();};$('view-paper').onclick=()=>{view='paper';renderDesk();};$('refresh').onclick=refresh;
+$('view-saty').onclick=()=>{view='saty';renderDesk();};$('view-paper').onclick=()=>{view='paper';renderDesk();};for(const id of ['refresh','momentum-refresh'])if($(id))$(id).onclick=refresh;
 $('export').onclick=()=>download('saty-plus-snapshot.json',{...state,notes,saty:{symbols:markets,evidence:evidencePack,uw,learning}});$('export-notes').onclick=()=>download('saty-plus-lesson-notes.json',{schema_version:1,state:'UNVALIDATED',notes});
 $('import').onchange=async event=>{try{const file=event.target.files[0];if(!file)return;if(file.size>8*1024*1024)throw new Error('Snapshot limit is 8 MB');const data=JSON.parse(await file.text());if(!validPaperSnapshot(data))throw new Error('Invalid paper snapshot: each journal record needs a symbol, status and numeric/null R. Existing data has been preserved.');for(const [symbol,feed] of Object.entries(data.feeds.symbols)){if(!SYMBOLS.includes(symbol)||!Array.isArray(feed.bars??[])||(feed.bars??[]).length>10000)throw new Error('Invalid symbol or too many bars');}if(data.journal.length>10000)throw new Error('Journal limit is 10,000 records');state={feeds:data.feeds,context:data.context??{},journal:data.journal};paperConnected=false;paperMessage='Imported browser-local journal · read-only. No paper setup can be queued from an import.';saveLocal('saty-snapshot',state);if(Array.isArray(data.notes)){const unique=new Map(notes.map(n=>[JSON.stringify(n),n]));data.notes.filter(n=>n&&typeof n.text==='string'&&safeHref(n.url)).forEach(n=>unique.set(JSON.stringify(n),n));notes=[...unique.values()];saveLocal('saty-notes',notes);renderNotes();}renderDesk();renderJournal();toast('Paper snapshot imported; existing lesson notes preserved. Engine data still comes from the shared feed.');}catch(error){toast(error.message);}event.target.value='';};
 $('export-journal').onclick=()=>{const keys=['id','symbol','setup','side','session','status','createdAt','fill','stop','target','exit','r','reason','strategyVersion'],cell=x=>'"'+String(x??'').replace(/"/g,'""').replace(/^[=+@-]/,'\u200b$&')+'"';download('saty-plus-paper-journal.csv',[keys.join(','),...list(state.journal).map(t=>keys.map(k=>cell(t[k])).join(','))].join('\r\n'),'text/csv');};
@@ -162,7 +170,7 @@ $('calendar-form').onsubmit=async event=>{event.preventDefault();try{if(!localSe
 getJSON('sources.json',{schema:false}).then(sources=>replace('sources',list(sources).map(s=>{const el=node('div',undefined,'source');el.append(link(`${s.title} ↗`,s.url),node('small',s.status),node('p',s.note));return el;}))).catch(()=>put('sources','Source library could not load.'));
 function clock(){put('clock',`${new Date().toLocaleTimeString('en-US',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',second:'2-digit'})} ET`);}
 const requestedSymbol=new URLSearchParams(location.search).get('symbol');if(SYMBOLS.includes(requestedSymbol)){selected=requestedSymbol;$('ticker-select').value=selected;}
-clock();renderNotes();renderDesk();renderUW();renderJournal();renderLearning();refresh();if(location.hash==='#learning')document.querySelector('[data-tab="learning"]').click();setInterval(clock,1000);setInterval(()=>{if(!document.hidden){renderDesk();renderUW();}},15000);setInterval(()=>{if(!document.hidden&&shouldPoll(lastPoll,Date.now(),snapshot?.session))refresh();},1000);document.addEventListener('visibilitychange',()=>{if(!document.hidden){renderDesk();if(shouldPoll(lastPoll,Date.now(),snapshot?.session))refresh();}});new ResizeObserver(()=>{if(page==='desk')draw();}).observe($('chart').parentElement);
+clock();renderNotes();renderDesk();renderUW();renderJournal();renderLearning();refresh();if(new URLSearchParams(location.search).get('journal')==='1')openPage('journal');else if(location.hash&&$(location.hash.slice(1))?.classList.contains('page'))openPage(location.hash.slice(1));setInterval(clock,1000);setInterval(()=>{if(!document.hidden){renderDesk();renderUW();}},15000);setInterval(()=>{if(!document.hidden&&shouldPoll(lastPoll,Date.now(),snapshot?.session))refresh();},1000);document.addEventListener('visibilitychange',()=>{if(!document.hidden){renderDesk();if(shouldPoll(lastPoll,Date.now(),snapshot?.session))refresh();}});new ResizeObserver(()=>{if(continuousDesk||page==='desk')draw();}).observe($('chart').parentElement);
 
 async function dailyLearningReview(){try{const r=await getJSON(DATA_BASE+'eod-review.json');const latest=r.sessions?.at(-1);put('daily-research-summary',latest?latest.session_date+' · '+latest.lesson:'No completed daily review yet.');}catch{put('daily-research-summary','Daily review unavailable; no result is invented.');}}
 dailyLearningReview();
