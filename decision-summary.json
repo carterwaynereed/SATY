@@ -1,0 +1,1 @@
+{"schema_version":1,"generated_at":"2026-10-24T00:21:25.322Z","symbols":{},"definition":"WAIT means no new managed baseline entry. OBSERVED and REPLAY_LATE are separate; neither is an executed fill."}
