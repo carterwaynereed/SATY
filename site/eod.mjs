@@ -1,9 +1,7 @@
 import {metricText} from './outcome-stats.mjs';
-import {renderLiveAlerts} from './live-alert-panel.mjs';
-import {renderBouncePanel} from './level-bounce-panel.mjs';
 import {renderPolicyReview} from './approved-rules.mjs';
 import {renderRadar} from './radar.mjs';
-import {renderExitPanel,drawExitChart} from './exit-panel.mjs';
+import {exitModel,drawExitChart} from './exit-panel.mjs';
 import {shouldPoll} from './session-mode.mjs';
 import {marketEndpoints,createMarketReader,number,snapshotHealth} from './assets/app.js';
 import {analyzeEOD,closeWindow} from './eod-analysis.mjs';
@@ -28,9 +26,7 @@ function render(){
  renderRadar($('direction-radar'),bundle,{selected:$('symbol').value,onSelect:symbol=>{$('symbol').value=symbol;loadFields();render();}});
   const s=bundle?.symbols?.[$('symbol').value];if(!s){$('status').textContent='DATA HOLD · Instrument unavailable.';return;}
   const symbol=$('symbol').value;
-  renderLiveAlerts($('live-alerts'),s,{failed:fetchFailed,onSelect:id=>{exitSelections[symbol]=id;render();}});
-  renderBouncePanel($('level-bounce'),s,{failed:fetchFailed,onSelect:id=>{exitSelections[symbol]=id;render();}});
-  const model=renderExitPanel($('exit-panel'),s,{selectedId:exitSelections[symbol],failed:fetchFailed,extended:bundle?.extended_hours?.[symbol],manual:shared?.by_symbol?.[symbol],onSelect:id=>{exitSelections[symbol]=id;render();}});drawExitChart($('exit-chart'),s,model,{all:showAllChartLevels});
+  const model=exitModel({...s,health:{...s.health,state:'CLOSED'}},{selectedId:exitSelections[symbol]});drawExitChart($('exit-chart'),s,model,{all:showAllChartLevels});
   const h=snapshotHealth(s,Date.now(),fetchFailed);
   $('status').className='connection '+(h.tone==='hold'?'warning':'');
   $('status').textContent=h.state+' · '+h.reason+' · '+(s.health?.source?.feed_name||s.health?.source?.symbol||'source unavailable')+' · last 3m '+(s.health?.price_asof||'unknown');

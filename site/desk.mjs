@@ -1,10 +1,8 @@
 import {outcomeStats,metricText} from './outcome-stats.mjs';
-import {renderLiveAlerts} from './live-alert-panel.mjs';
-import {renderBouncePanel} from './level-bounce-panel.mjs';
 import {chartLevels,drawChartOverlays} from './chart-overlays.mjs';
 import {renderRadar} from './radar.mjs';
 import {scoreDirection,renderPolicyReview} from './approved-rules.mjs';
-import {renderExitPanel} from './exit-panel.mjs';
+import {exitModel} from './exit-panel.mjs';
 import {sessionMode,shouldPoll} from './session-mode.mjs';
 import {analyze,SYMBOLS,journalStats,eastern} from './engine.mjs';
 import {allocateEvidenceWeights} from './weights.mjs';
@@ -41,11 +39,9 @@ function maybeEodDefault(){
  if(!location.hash&&!new URLSearchParams(location.search).has('view')&&page==='desk'&&s?.date===eastern(now).date&&now>=Date.parse(s.close)-1800000&&now<Date.parse(s.close))location.replace(new URL('eod.html',location.href));
 }
 function renderDesk(){
- maybeEodDefault();
+ // Archived workspace: never redirect or issue live strategy instructions.
  renderRadar($('direction-radar'),{symbols:markets},{selected,onSelect:symbol=>{selectTicker(symbol);document.querySelector('[data-tab="desk"]').click();}});
- renderLiveAlerts($('live-alerts'),snapshot,{failed:fetchFailed,onSelect:id=>{exitSelections[selected]=id;renderDesk();}});
- renderBouncePanel($('level-bounce'),snapshot,{failed:fetchFailed,onSelect:id=>{exitSelections[selected]=id;renderDesk();}});
- const exit=renderExitPanel($('exit-panel'),snapshot,{selectedId:exitSelections[selected],failed:fetchFailed,extended:extendedHours[selected],manual:manualInputs?.by_symbol?.[selected],onSelect:id=>{exitSelections[selected]=id;renderDesk();}});
+ const exit=exitModel(snapshot?{...snapshot,health:{...snapshot.health,state:'CLOSED'}}:null,{selectedId:exitSelections[selected]});
 
  const h=health(),blocked=h.tone==='hold'||h.state==='DATED SNAPSHOT',m=snapshot?.market||{},r=snapshot?.ribbon||{},s=snapshot?.session||{},source=snapshot?.health?.source||{};
  const analyses=paperAnalyses(),a=analyses.find(x=>x.symbol===selected),spy=analyses.find(x=>x.symbol==='SPY');
@@ -67,15 +63,15 @@ function renderDesk(){
  put('chart-symbol',selected);put('price',number(saty?m.last:a.price));put('regime',saty?nice(r.alignment):a.regime);put('profile-label',saty?'SATY · 3m RTH':`DESK v0.1 · ${a.profile?.entry??3}m / ${a.profile?.trend??10}m`);put('legend-one',saty?'━ 8 EMA':'━ TREND 13 EMA');put('asof',`${saty?stamp(snapshot?.health?.price_asof):stamp(a.asOf)} ET`);put('session-label',saty?`${s.date||'—'} · ${nice(s.status)} · RTH`:`Paper scanner · ${a.session.name}`);
  put('source-label',saty?`${source.provider||'Source unavailable'} · ${source.source_id||'feed unverified'} · ${finite(source.delay_seconds)?`${source.delay_seconds}s reported delay`:'delay unknown'} · public chart feed · confirmed 3m bars · refresh every 15s.`:`Original paper scanner · ${state.feeds?.provider||state.feeds?.symbols?.[selected]?.provider||'private/imported feed'} · ${paperConnected?'connected':'retained / imported'} · 90-second freshness gate.`);
  const conditions=saty?list(snapshot?.plan?.next_conditions):[],p=saty?null:a.plan;
- put('plan-model',saty?'APPROVED SCORE60 · SIGNAL ONLY':'DESK v0.1 · PAPER');
+ put('plan-model',saty?'ARCHIVED RESEARCH':'DESK v0.1 · PAPER');
  if(saty&&snapshot?.approved_rules){const policy=snapshot.approved_rules;replace('trade-plan',[node('p','Confirmed 3m flip to CALL ≥60% or PUT ≥60%; next available bar open.','description'),node('p',`Trades today: ${policy.entries_today} · No new entries after 3 PM`),node('p',policy.cooldown_until&&Date.parse(policy.cooldown_until)>Date.now()?`Cooldown until ${time(policy.cooldown_until)} ET`:'Cooldown ready')]);}
  else if(saty){replace('trade-plan',conditions.length?conditions.flatMap(c=>{const row=node('div');row.append(node('span',c.label||'Reference level'),node('strong',number(c.price)));if(c.note)row.append(node('small',c.note));return [row];}):[node('div',blocked?h.reason:'No confirmed next-condition map is available.','description')]);}
  else if(p){replace('trade-plan',[node('div',`${p.setup} · ${a.decision==='WAIT'||!paperConnected?'Entry blocked':'Paper candidate'}`,'description'),...[['Reference entry',p.entry],['Invalidation',p.stop],['Next level',p.target],['Reward / risk',p.rr]].map(([k,v])=>{const row=node('div');row.append(node('span',k),node('strong',number(v)+(k==='Reward / risk'?'R':'')));return row;})]);}
  else replace('trade-plan',[node('div','No qualified paper setup. Wait for aligned timeframes and a fresh closed-candle trigger.','description')]);
- $('paper').hidden=saty||!localServer||state.paperEntryMode==='scheduled';$('paper').disabled=!paperConnected||a.decision==='WAIT';
+ $('paper').hidden=true;$('paper').disabled=true;
  put('paper','Queue local paper study');
  put('study-status',saty?'Signal-only. View completed-candle observations in Setups & evidence.':localServer&&paperConnected?'The local scanner can queue eligible simulated studies.':'This page displays the private paper journal. New studies require the original local scanner; no study runs from this button.');
- put('plan-note',saty?'Live alerts: hard max 5 total across all tickers, max 3 per ticker; 30-minute loss cooldown. No new entries after 3 PM. Simultaneous candidates rank by confidence then PF. Original sig2 setups remain historical references. Modeled next-open fills are not broker executions.':'Next-minute simulated entry. Underlying slippage and time exits belong to this paper model only. No order or options return is implied.');
+ put('plan-note','Archived research only. The home Momentum Tracker is the only live signal policy. Level Bounce, box-break and prior score-based alerts are retired from live use.');
  put('level-basis',saty?'SATY ATR · PREVIOUS CLOSE':'DESK v0.1 · PRIOR / PREMARKET / OPENING RANGE');
  const references=saty?[['Previous close',m.prev_close],['Daily ATR14',m.atr14],['Session VWAP',m.vwap]]: [['Paper VWAP',a.vwap],['Entry ATR',a.atrEntry]];
  replace('market-reference',references.map(([k,v])=>{const el=node('span',`${k} `);el.append(node('b',number(v)));return el;}));
@@ -87,7 +83,7 @@ function renderDesk(){
  put('phase-note',`${nice(r.price_position)} ribbon · phase slope ${finite(r.phase_slope)?signed(r.phase_slope):nice(r.phase_slope)}. Frozen RTH variant; context does not alter the paper scanner.`);
  const features=saty?list(snapshot?.evidence_weights?.features):list(a.features),inSession=Boolean(snapshot?.session?.open&&snapshot?.session?.close&&Date.now()>=Date.parse(snapshot.session.open)&&Date.now()<Date.parse(snapshot.session.close));
  const scores=allocateEvidenceWeights(features,{fresh:saty?h.tone==='current':paperConnected&&finite(a.ageSeconds)&&a.ageSeconds<=90,inSession});
- if(saty){put('decision',blocked?'DATA HOLD':h.tone==='current'?(snapshot?.alert_budget?.state==='DATA HOLD'?'DATA HOLD':snapshot?.live_alerts?.trades?.some(t=>t.status==='TRACKING'&&t.side===1)?'CALL':snapshot?.live_alerts?.trades?.some(t=>t.status==='TRACKING'&&t.side===-1)?'PUT':snapshot?.approved_rules?.pending?.side===1||snapshot?.level_bounce?.pending?.side===1?'CALL':snapshot?.approved_rules?.pending?.side===-1||snapshot?.level_bounce?.pending?.side===-1?'PUT':'WAIT'):'WAIT');put('signal-tag','Shared daily alert budget · directional scores are context');put('plan-summary',snapshot?.approved_rules?`Trades today: ${snapshot.approved_rules.entries_today} · No new entries after 3 PM · next-open model, not actual fills`:'Approved policy replay unavailable; no new entry instruction.');}
+ if(saty){put('decision','RESEARCH');put('signal-tag','Archived models · no live signals');put('plan-summary','Use the home Momentum Tracker for the one daily signal. This workspace retains charts, evidence and the private journal.');}
  for(const key of ['call','put','wait'])put(`${key}-score`,firstMarketRead&&!snapshot?'—':`${scores[key]}%`);
  replace('scorebar',[['call','var(--lime)'],['put','var(--red)'],['wait','#778571']].map(([key,color])=>{const el=node('i');el.style.width=`${scores[key]}%`;el.style.background=color;return el;}));
  put('weight-model',saty?`${selected} · SATY rows`:'DESK v0.1 rows');put('weight-status',scores.reason);put('weight-math',scores.math);$('scores-block').title=scores.math;
@@ -151,7 +147,7 @@ async function refresh(){if(fetching)return;lastPoll=Date.now();fetching=true;$(
 }
 for(const b of document.querySelectorAll('[data-tab]'))b.addEventListener('click',()=>{page=b.dataset.tab;for(const p of document.querySelectorAll('.page'))p.hidden=p.id!==page;for(const x of document.querySelectorAll('[data-tab]')){x.classList.toggle('active',x===b);x.setAttribute('aria-current',x===b?'page':'false');}if(page==='desk')renderDesk();window.scrollTo({top:0,behavior:'instant'});});
 for(const anchor of document.querySelectorAll('a[href="#desk"]'))anchor.addEventListener('click',()=>{document.querySelector('[data-tab="desk"]').click();});
-$('paper-sign-in').href=`${PUBLIC_DESK_ORIGIN}/signin-with-chatgpt?return_to=${encodeURIComponent('/?journal=1')}`;
+$('paper-sign-in').href=`${PUBLIC_DESK_ORIGIN}/signin-with-chatgpt?return_to=${encodeURIComponent('/details.html?journal=1')}`;
 if(new URLSearchParams(location.search).get('journal')==='1')document.querySelector('[data-tab="journal"]').click();
 $('ticker-select').onchange=event=>selectTicker(event.target.value);
 $('all-chart-levels').onchange=e=>{showAllChartLevels=e.target.checked;renderDesk();};
