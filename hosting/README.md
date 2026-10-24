@@ -114,3 +114,14 @@ challenger and radar outcomes; no new scheduler or intraday cadence was added.
 `policy-evidence.json` is persisted on dashboard-data, while raw paired records
 remain in its `state/approved/` archive. Reported Oct 19–23 aggregates have their
 own provenance and never count as prospective validation. No automatic promotion.
+
+
+### Soft-cap and axis overlays (v1.1)
+
+`carter-score60-softcap-1.1` permits three normal entries and one additional entry
+only when the confirmed flip radar is >=55 and the ticker's already-realized
+modeled session return is positive. No unrealized P/L or future candle score is
+used. The same policy applies to both runner and no-runner variants. This is a
+new frozen comparison; prior reported week results stay labeled as the prior
+rules. The public cache uses `saty-plus/market-v4-softcap.json` to avoid serving
+old entry state. Private storage and audience remain unchanged.

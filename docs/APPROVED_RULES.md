@@ -1,6 +1,6 @@
 # Carter-approved score60 / runner rules · 2026-10-23
 
-User-approved live signal-only overlay: `carter-score60-runner-1.0`.
+User-approved live signal-only overlay: `carter-score60-softcap-1.1` (supersedes the two-entry v1.0 overlay).
 Prior release/rollback source: `40734ac55523a4706bb0606fe3d15c582eefb42a`.
 The frozen sig2 engine and evidence weights remain reference inputs, unchanged.
 The new decisions, trade episodes and radar have separate versioned identities.
@@ -12,7 +12,7 @@ into CALL/PUT is an entry candidate at the confirmed 3m close. It fills at the
 immediately following available RTH bar's open in replay only. No fill is invented
 when that bar is missing, stop geometry is invalid, or no target inside the 100%
 ATR grid remains. A continuous same-side score never triggers another entry.
-One modeled position per ticker, maximum two filled entries/session; no signal
+One modeled position per ticker, normally three filled entries/session, with a fourth only when the confirmed signal-bar radar is >=55 and this ticker's realized modeled session return is positive; no signal
 or fill at/after 15:00 ET. Loss/flat exits start a 30-minute cooldown, including
 10 full 3m bars. Cooldown expiry requires a new flip; it does not auto-enter.
 
@@ -71,3 +71,20 @@ session summaries. Radar validation uses exactly 20 future confirmed bars,
 close-to-close direction, with insufficient horizons unresolved. Session correlation
 is explicit. Thirty sessions/100 episodes permit human review only, never promotion.
 No broker, orders, automatic rule optimization, or extra scheduler is introduced.
+
+
+## Soft-cap / chart revision
+
+The v1.1 fourth-entry exception uses only the sum of already-closed modeled
+underlying returns for this ticker on this exchange session. Unrealized profit
+never qualifies it; unresolved prior trades block that exception. The radar is
+computed before replay and frozen on the confirmed flip, not read from the
+future entry candle. A fifth entry is never eligible. Existing loss/flat cooldown
+and 15:00 cutoff are unchanged. The UI says “Trades today x” without a denominator.
+This new version is not validated by the older supplied week summary.
+
+Both charts default to the next two ATR targets plus the modeled stop. “All
+levels” restores the reference grid for that chart. Lines are thin/dashed at
+30% opacity; rounded green/red/grey price-axis pills use a reserved gutter,
+with collision spacing and gutter-only connectors. No overlay text is painted
+in the candle area. The private journal is unchanged.
