@@ -7,7 +7,9 @@
   "automatic_promotion": false,
   "orders": false,
   "risk_scope": "Independent per-ticker Level Bounce cap/cooldown. MAIN policy unchanged; separate setups may disagree. No combined portfolio allocation.",
-  "reported_walk_forward": {
+  "confidence": "LOW CONFIDENCE",
+  "forward_testing_from": "2026-10-26",
+  "superseded_walk_forward": {
     "n": 33,
     "win_rate": 0.7,
     "wilson_95": [
@@ -18,5 +20,14 @@
     "profit_factor": 1.76,
     "max_drawdown_pct": -1.1,
     "independently_reproduced": false
+  },
+  "reported_walk_forward": {
+    "weeks": 13,
+    "target_hit_rate": null,
+    "closed_green_rate": 0.47,
+    "profit_factor": 0.92,
+    "n": null,
+    "independently_reproduced": false,
+    "note": "Prior 70% claim withdrawn; counts were closed-green rather than target-hit."
   }
 }

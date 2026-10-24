@@ -1,3 +1,4 @@
+import {outcomeStats,metricText} from '../outcome-stats.mjs';
 /* Buildless UI. External values enter the DOM only through textContent. */
 export const finite = value => typeof value === 'number' && Number.isFinite(value);
 export const number = (value, digits = 2) => finite(value) ? value.toLocaleString('en-US', {minimumFractionDigits: digits, maximumFractionDigits: digits}) : '—';
@@ -85,7 +86,7 @@ export function probabilityView(probability) {
   const p = probability || {}, n = finite(p.n) ? p.n : null, episodes = finite(p.episodes) ? p.episodes : null;
   const rate = finite(p.display_probability) && p.display_probability >= 0 && p.display_probability <= 1 ? p.display_probability : null;
   const show = n >= 20 && episodes >= 20 && rate !== null;
-  return {headline:show ? `${percent(rate)} historical hit rate` : 'Limited evidence · no headline probability',
+  return {headline:show ? `${percent(rate)} Target hit % · Closed green %: unavailable · PF: unavailable` : 'Target hit % unavailable · Closed green % unavailable · PF unavailable · limited evidence',
     counts:finite(p.hits) && n !== null ? `${p.hits}/${n} target events · ${episodes === null ? 'episode count unverified' : `${episodes} episodes`} · ${finite(p.sessions) ? p.sessions : '—'} sessions` : 'No matching historical target events',
     interval:`Wilson 95% interval: ${interval(p.interval)} (n=${n ?? 'unavailable'})`,
     event:p.event || 'Target before original stop by session close',show};
@@ -97,8 +98,9 @@ export function evidenceMatches(snapshot, evidence) {
 }
 export function paperRateView(stats, trades = []) {
   const n = Number.isInteger(stats?.n) && stats.n >= 0 ? stats.n : 0;
+  const measured=outcomeStats(trades);
   const wins = trades.filter(t => t.status === 'closed' && Number.isFinite(t.r) && t.r > 0).length;
-  return {n, wins, headline:n >= 20 && finite(stats?.winRate) ? `${stats.winRate}% observed wins · n=${n}` : `Headline withheld · n=${n} < 20`,
+  return {n,wins,...measured,headline:n >= 20 && finite(stats?.winRate) ? metricText(measured) : `Headline withheld · Target hit % unavailable · Closed green % unavailable · PF ${Number.isFinite(measured.profit_factor)?measured.profit_factor.toFixed(2):'unavailable'} · n=${n} < 20`,
     interval:Array.isArray(stats?.interval) ? `${stats.interval.join('–')}% · n=${n}` : `Unavailable · n=${n}`};
 }
 export function safeHref(value) {

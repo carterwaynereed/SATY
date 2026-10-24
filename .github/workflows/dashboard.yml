@@ -79,6 +79,12 @@ jobs:
       - name: Measure hidden Level Bounce v2 independently
         if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
         run: node scripts/review_bounce_v2.mjs --state-dir .dashboard-state/state
+      - name: Capture native VIX15 for live-alert model review
+        if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
+        run: python scripts/capture_live_alert_context.py --state-dir .dashboard-state/state
+      - name: Measure shared live-alert policy with corrected outcome metrics
+        if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
+        run: node scripts/review_live_alerts.mjs --state-dir .dashboard-state/state
       - name: Validate static payload
         if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
         run: python scripts/validate_site.py
