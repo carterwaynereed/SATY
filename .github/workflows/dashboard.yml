@@ -64,6 +64,12 @@ jobs:
       - name: Audit hidden trigger-retest shadow samples
         if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
         run: node scripts/review_retest.mjs --state-dir .dashboard-state/state
+      - name: Capture hidden pullback VIX and overnight research context
+        if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
+        run: python scripts/capture_pullback_context.py --state-dir .dashboard-state/state
+      - name: Measure hidden Saty 21 Pullback plus VIX challenger
+        if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
+        run: node scripts/review_pullback_vix.mjs --state-dir .dashboard-state/state
       - name: Validate static payload
         if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
         run: python scripts/validate_site.py
