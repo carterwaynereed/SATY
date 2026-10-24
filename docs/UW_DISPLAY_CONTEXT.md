@@ -48,3 +48,36 @@ when supplied through the declared interface, retain their source and freshness.
 The official Unusual Whales dashboard recipe recommends server-side credentials,
 per-panel cached observations, and explicit timestamps. Market tide REST
 documentation: https://api.unusualwhales.com/docs/operations/PublicApi.MarketController.market_tide
+
+## Last-ten-minute max-pain lean
+
+The SPY UW box includes one hidden-by-default informational line. It appears only
+from ten minutes before the authoritative session close up to, but not including,
+the close. This also handles exchange early closes. It requires an OPEN session
+for the current Eastern calendar date, weekday, fresh confirmed SPY price (the
+existing 225-second limit), and SPY max pain and nonzero net premium observations
+no more than five minutes old. A failed read, stale/placeholder field, future
+timestamp, other ticker selection or missing session metadata hides the line.
+
+Agreement means the explicit premium direction points from current SPY price
+toward the reported SPY max-pain price. Accepted direction contracts are:
+
+- `flow.classification` = `bullish` or `bearish`, with the same source/time/scope
+  requirements as the other fields; or
+- `flow.net_premium_basis` = `net_call_minus_net_put`, with fresh signed
+  `flow.net_call_premium` and `flow.net_put_premium`. Their difference must match
+  `flow.net_premium` within one cent (or floating-point tolerance), and its sign
+  supplies direction. An explicit contradictory classification hides the line.
+
+The classifier and signed components can carry their own field metadata. Generic
+positive/negative net premium without a declared direction is ambiguous and does
+not qualify. Gross call/put premium and market-wide tide are never substituted.
+The informational line does not issue an alert, use the daily signal slot, alter
+exits, or feed outcome statistics or challenger promotion.
+
+The displayed `~60% historically (n=128)` is Carter's supplied replay summary.
+The line's accessible description and tooltip identify it as user-reported,
+not independently reproduced, and not a live win probability. No exact success
+count, Wilson interval, profit factor or replay outcome definition was supplied,
+so none is fabricated. The empty bundled feed still causes the line to stay
+hidden until timestamped observations satisfying this contract arrive.

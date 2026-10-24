@@ -1,5 +1,5 @@
 import {sessionMode} from './session-mode.mjs';
-import {normalizeUW} from './uw-view.mjs';
+import {normalizeUW,maxPainLean} from './uw-view.mjs';
 import {TICKERS,priceText,currencyText,timeText,dayText,easternDay,momentumView,momentumCardHTML,watchView,watchHTML,statsView} from './momentum-view.mjs';
 
 // Rendering only: desk.mjs owns the single market reader, ticker and poll loop.
@@ -21,9 +21,9 @@ export function renderMomentumDashboard(bundle,{now=Date.now(),failed=false,load
   put('green-stat-label',`Closed green %${s.closedN!==null?' · n='+s.closedN:''}`);put('pf-stat-label',`Profit factor${s.closedN!==null?' · n='+s.closedN:''}`);
   put('stats-note',`${s.unresolved?`${s.unresolved} unresolved signal${s.unresolved===1?'':'s'} excluded and retained for review. `:''}Percentages stay hidden until n ≥ 20. Targets measure underlying price movement, not options returns.`);
   put('rule-version',v.version);put('tracker-inputs',v.holds.length?v.holds.join(' '):'Confirmed 3m bars. Same-time RVOL of 1.5 or higher skips the event; unavailable RVOL holds new signals.');
-  renderUW(bundle,{now,selected,uw,uwFailed});
+  renderUW(bundle,{now,selected,uw,uwFailed,failed});
 }
-function renderUW(bundle,{now,selected,uw,uwFailed}){
+function renderUW(bundle,{now,selected,uw,uwFailed,failed}){
   const packet=bundle?.unusual_whales??bundle?.uw??uw,u=normalizeUW(packet,{symbol:selected,now});
   put('uw-symbol',selected);const state=uwFailed&&!bundle?.unusual_whales&&!bundle?.uw?'STALE':u.state;
   put('uw-state',state==='CURRENT'?'CURRENT':state==='PARTIAL'?'PARTIAL DATA':state==='STALE'?'REFERENCE':'DATA HOLD');$('uw-state').className='context-badge'+(state==='CURRENT'?' current':'');
@@ -42,4 +42,6 @@ function renderUW(bundle,{now,selected,uw,uwFailed}){
   for(const [id,keys] of [['gamma-wall',['call_wall','put_wall']],['gamma-flip',['gamma_flip']],['market-tide',['market_tide']],['net-premium',['net_premium']],['max-pain',['max_pain']]])$(id).title=keys.map(key=>`${key.replaceAll('_',' ')}: ${fields[key]?.state??'UNAVAILABLE'} · ${fields[key]?.asof?timeText(fields[key].asof):'time unavailable'} · ${fields[key]?.source??'source unavailable'}`).join('\n');
   const asof=u.asof?`As of ${timeText(u.asof)}. `:'';
   put('uw-foot',`${asof}${state==='CURRENT'?'Display only. Context does not change the momentum signal.':u.reason??'Awaiting verified feed values. Missing data stays unavailable.'}`);
+  const lean=maxPainLean(packet,{symbol:selected,snapshot:bundle?.symbols?.SPY,now,failed:failed || uwFailed&&!bundle?.unusual_whales&&!bundle?.uw});
+  const line=$('max-pain-lean');if(line){line.hidden=!lean.visible;line.textContent=lean.text;line.title=lean.evidence;line.setAttribute('aria-label',lean.visible?`${lean.text}. ${lean.evidence}`:'');}
 }

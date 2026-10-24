@@ -83,3 +83,42 @@ export function normalizeUW(raw, {symbol = 'SPY', now = Date.now()} = {}) {
       state === 'PARTIAL' ? `${current.length} of ${KEYS.length} fields current; each field keeps its own time and scope.` :
       'Current display-only context. These values do not change the momentum signal.'};
 }
+
+const east = value => Object.fromEntries(new Intl.DateTimeFormat('en-CA', {timeZone:'America/New_York', year:'numeric', month:'2-digit', day:'2-digit', weekday:'short'}).formatToParts(value).map(p => [p.type,p.value]));
+const dayOf = value => {const p=east(value);return `${p.year}-${p.month}-${p.day}`;};
+
+// Informational EOD context only. Neither the signal budget nor an outcome
+// statistic consumes this view; the supplied replay summary is not a forecast.
+export function maxPainLean(raw, {symbol='SPY', snapshot=null, now=Date.now(), failed=false}={}) {
+  const hidden = {visible:false, text:'', evidence:''};
+  if (failed || symbol !== 'SPY' || !Number.isFinite(now) || snapshot?.market?.symbol !== 'SPY') return hidden;
+  const session=snapshot.session, open=Date.parse(session?.open), close=Date.parse(session?.close), day=dayOf(now);
+  const price=number(snapshot.market.last), priceAt=Date.parse(snapshot.health?.price_asof);
+  if (['Sat','Sun'].includes(east(now).weekday) || session?.date!==day || session?.calendar_date!==day || session?.status!=='OPEN' ||
+      !Number.isFinite(open) || !Number.isFinite(close) || close<=open || dayOf(open)!==day || dayOf(close)!==day ||
+      now<open || now<close-600000 || now>=close || snapshot.health?.state!=='CURRENT' || price===null || price<=0 ||
+      !Number.isFinite(priceAt) || priceAt<open || now-priceAt<0 || now-priceAt>225000) return hidden;
+  const current = item => item?.state==='CURRENT' && item.scope==='SPY' && Number.isFinite(Date.parse(item.asof)) &&
+    dayOf(Date.parse(item.asof))===day && now-Date.parse(item.asof)>=0 && now-Date.parse(item.asof)<=300000;
+  const view=normalizeUW(raw,{symbol:'SPY',now}), pain=view.fields.max_pain, premium=view.fields.net_premium;
+  if (!current(pain) || !current(premium) || premium.value===0 || pain.value===price) return hidden;
+  const root=record(raw)?raw:{}, row=record(root.by_symbol)?root.by_symbol.SPY:root;
+  if (!record(row)) return hidden;
+  const flow=record(row.flow)?row.flow:{}, fallback={source:root.source,asof:root.asof,timestamp:root.timestamp,status:root.status,ttl_minutes:root.ttl_minutes};
+  const make=(value,string=false)=>field(value,[flow,row,fallback],{now,scope:'SPY',unit:string?'direction':'USD',string});
+  const classification=make(flow.classification,true);
+  const label=current(classification)?classification.value.toLowerCase():null;
+  let direction=label==='bullish'?1:label==='bearish'?-1:0;
+  const calls=make(flow.net_call_premium),puts=make(flow.net_put_premium);
+  if (flow.net_premium_basis==='net_call_minus_net_put' && current(calls) && current(puts)) {
+    const difference=calls.value-puts.value, consistent=Math.abs(premium.value-difference)<=Math.max(0.01,Math.abs(difference)*1e-9);
+    const pairDirection=consistent?Math.sign(difference):0;
+    if (!pairDirection || direction && direction!==pairDirection) return hidden;
+    direction=pairDirection;
+  }
+  if (!direction || direction!==Math.sign(pain.value-price)) return hidden;
+  const target=new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}).format(pain.value);
+  return {visible:true, target:pain.value, direction, display_only:true,
+    text:`Last-10-min max-pain lean: toward $${target}, net premium agrees, ~60% historically (n=128)`,
+    evidence:'SPY display-only context. Carter-reported replay: approximately 60%, n=128; not independently reproduced or a live win probability. This is not a new signal or an order.'};
+}
