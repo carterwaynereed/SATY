@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "name": "Level Bounce v2",
+  "version": "shadow-level-bounce-v2-1.0",
+  "status": "SHADOW_ONLY",
+  "hidden_from_ui": true,
+  "eligible_for_execution": false,
+  "automatic_promotion": false,
+  "registered_at": "2026-10-24T04:12:29.177688+00:00",
+  "baseline_commit": "342d1c77677c06b6e329160f03172a502c75e787",
+  "default_vix_key": 16,
+  "daily_keys": {},
+  "risk_scope": "Independent shadow cap/cooldown; never affects live Level Bounce or MAIN.",
+  "reported_walk_forward": {
+    "n": 28,
+    "win_rate": 0.75,
+    "wilson_95": [
+      0.57,
+      0.87
+    ],
+    "return_pct": 4.48,
+    "profit_factor": 2.23,
+    "positive_weeks": 5,
+    "weeks": 5,
+    "independently_reproduced": false,
+    "note": "User-reported OOS aggregates. Raw trades, weeks, symbols, costs and per-day key schedule were not supplied. Never pooled with app samples."
+  }
+}
