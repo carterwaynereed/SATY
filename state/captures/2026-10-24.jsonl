@@ -2,3 +2,7 @@
 {"symbol":"SPX","observed_at":"2026-10-24T00:21:25.322Z","state":"UNAVAILABLE","bar_time":null,"one_minute_state":"UNAVAILABLE"}
 {"symbol":"AAPL","observed_at":"2026-10-24T00:21:25.322Z","state":"UNAVAILABLE","bar_time":null,"one_minute_state":"UNAVAILABLE"}
 {"symbol":"GOOGL","observed_at":"2026-10-24T00:21:25.322Z","state":"UNAVAILABLE","bar_time":null,"one_minute_state":"UNAVAILABLE"}
+{"symbol":"SPY","observed_at":"2026-10-24T00:25:13.651Z","state":"CLOSED","bar_time":"2026-10-23T20:00:00.000Z","one_minute_state":"CLOSED"}
+{"symbol":"SPX","observed_at":"2026-10-24T00:25:13.651Z","state":"CLOSED","bar_time":"2026-10-23T20:00:00.000Z","one_minute_state":"CLOSED"}
+{"symbol":"AAPL","observed_at":"2026-10-24T00:25:13.651Z","state":"CLOSED","bar_time":"2026-10-23T20:00:00.000Z","one_minute_state":"CLOSED"}
+{"symbol":"GOOGL","observed_at":"2026-10-24T00:25:13.651Z","state":"CLOSED","bar_time":"2026-10-23T20:00:00.000Z","one_minute_state":"CLOSED"}
