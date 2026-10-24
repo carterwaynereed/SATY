@@ -35,10 +35,14 @@ jobs:
           python scripts/summarize_learning.py
       - name: Offline behavior and causality tests
         run: python -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Check all frontend and server JavaScript syntax
+        run: find site lib hosting scripts -type f \( -name '*.mjs' -o -name '*.js' \) -print0 | xargs -0 -n 1 node --check
       - name: Browser logic tests
         run: node --test tests/*.test.mjs
       - name: Validate public artifact and frozen engine
         run: python scripts/validate_site.py
+      - name: Compile hosted Worker without deployment credentials
+        run: node hosting/build.mjs --check
       - name: Python syntax
         run: python -m compileall -q saty_dashboard scripts engine
       - name: Archive reviewed public source for reproducibility

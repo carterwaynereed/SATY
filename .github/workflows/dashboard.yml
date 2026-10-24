@@ -14,7 +14,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: saty-dashboard-pages
+  group: saty-dashboard-data
+  queue: max
   cancel-in-progress: false
 
 jobs:
@@ -59,7 +60,7 @@ jobs:
         id: market_refresh
         if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
         continue-on-error: true
-        run: python scripts/refresh_tv_market.py --output site/data/market.json
+        run: python scripts/refresh_tv_market.py --output site/data/market.json --state-dir .dashboard-state/state
       - name: Validate static payload
         if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
         run: python scripts/validate_site.py
