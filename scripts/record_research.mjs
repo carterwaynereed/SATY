@@ -21,7 +21,7 @@ export async function recordResearch(feeds,snapshots,state,now) {
     for(const r of rows){
       if(!known.has(r.id)){await appendFile(path,JSON.stringify(r)+'\n');known.set(r.id,r);}
       else {
-        const old=known.get(r.id),fields=x=>[x.decision,x.close,x.evidence_score,x.row_directions,x.radar,x.approved,x.retest_runner_decision];
+        const old=known.get(r.id),fields=x=>[x.decision,x.close,x.evidence_score,x.row_directions,x.radar,x.approved];
         if(hash(fields(old))!==hash(fields(r))){
           const revision={id:r.id,observed_at:r.observed_at,type:'PROVIDER_REPLAY_REVISION',prior_hash:hash(fields(old)),new_hash:hash(fields(r))};
           const rp=join(state,'revisions',day+'.jsonl'),seen=await lines(rp);

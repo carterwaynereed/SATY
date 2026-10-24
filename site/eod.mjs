@@ -1,4 +1,3 @@
-import {selectSetupScenario,renderRetest} from './trigger-retest.mjs';
 import {renderPolicyReview} from './approved-rules.mjs';
 import {renderRadar} from './radar.mjs';
 import {renderExitPanel,drawExitChart} from './exit-panel.mjs';
@@ -10,7 +9,7 @@ const $=id=>document.getElementById(id),fmt=number;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const DATA='https://raw.githubusercontent.com/carterwaynereed/SATY/dashboard-data/';
 const ep=marketEndpoints(location.hostname),readMarket=createMarketReader();
-let exitSelections={},lastPoll=0,showAllChartLevels=false,retestRunners={},retestEvidence=null;
+let exitSelections={},lastPoll=0,showAllChartLevels=false;
 let bundle=null,shared=null,fetchFailed=false,busy=false,metadataAt=0;
 async function get(url){const r=await fetch(url,{cache:'no-store',credentials:'omit',signal:AbortSignal.timeout(15000)});if(!r.ok)throw Error(new URL(url,location.href).pathname+' HTTP '+r.status);return r.json();}
 const localKey=id=>'saty-eod-'+$('symbol').value+'-'+id;
@@ -24,9 +23,8 @@ function detector(id,result){
 }
 function render(){
  renderRadar($('direction-radar'),bundle,{selected:$('symbol').value,onSelect:symbol=>{$('symbol').value=symbol;loadFields();render();}});
-  const s=selectSetupScenario(bundle?.symbols?.[$('symbol').value],retestRunners[$('symbol').value]===true);if(!s){$('status').textContent='DATA HOLD · Instrument unavailable.';return;}
+  const s=bundle?.symbols?.[$('symbol').value];if(!s){$('status').textContent='DATA HOLD · Instrument unavailable.';return;}
   const symbol=$('symbol').value;
-  renderRetest($('trigger-retest'),s,{runner:retestRunners[symbol]===true,failed:fetchFailed,stats:retestEvidence?.by_symbol?.[symbol]?.[retestRunners[symbol]?'runner':'fixed']?.observed,onRunner:value=>{retestRunners[symbol]=value;render();}});
   const model=renderExitPanel($('exit-panel'),s,{selectedId:exitSelections[symbol],failed:fetchFailed,extended:bundle?.extended_hours?.[symbol],manual:shared?.by_symbol?.[symbol],onSelect:id=>{exitSelections[symbol]=id;render();}});drawExitChart($('exit-chart'),s,model,{all:showAllChartLevels});
   const h=snapshotHealth(s,Date.now(),fetchFailed);
   $('status').className='connection '+(h.tone==='hold'?'warning':'');
@@ -46,8 +44,8 @@ function render(){
 }
 const rateText=x=>!x||!x.n?'unavailable · n=0':`${x.hits}/${x.n} = ${fmt(100*x.rate,0)}%; Wilson 95% ${x.wilson_95.map(v=>fmt(100*v,0)+'%').join('–')} · n=${x.n}`;
 async function metadata(){
-  const results=await Promise.allSettled(['eod-review.json','health-alarms.json','manual-inputs.json','shadow-evidence.json','retest-evidence.json'].map(n=>get(DATA+n)));
-  const [r,a,m,sh]=results.map(x=>x.status==='fulfilled'?x.value:null);if(m)shared=m;retestEvidence=results[4]?.status==='fulfilled'?results[4].value:null;
+  const results=await Promise.allSettled(['eod-review.json','health-alarms.json','manual-inputs.json','shadow-evidence.json'].map(n=>get(DATA+n)));
+  const [r,a,m,sh]=results.map(x=>x.status==='fulfilled'?x.value:null);if(m)shared=m;
   let config=null,paired=null;try{config=await get('data/approved-rules.json');paired=await get(DATA+'policy-evidence.json');}catch{}renderPolicyReview($('policy-review'),config,paired);
   const last=r?.sessions?.at(-1);
   $('health-review').innerHTML='<p>Latest review: '+esc(last?.session_date||'not available')+' · observed signals n='+esc(last?.signal_count??'—')+' · actual observed WAIT n='+esc(last?.wait_count??'—')+' · replay-late n='+esc(last?.replay_late_count??'—')+'</p><p>'+esc(last?.lesson||'No completed ledger review yet.')+'</p><p>Signal excursion fraction: '+esc(rateText(last?.signal_evidence))+'</p><p>WAIT large-move context: '+esc(rateText(last?.wait_missed_move_evidence))+'</p><p>Alarms n='+esc(a?.alarms?.length??'—')+'. Inspection requests are not proof of a broken engine.</p>';

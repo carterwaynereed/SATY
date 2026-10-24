@@ -44,7 +44,7 @@ jobs:
         run: node scripts/run_shadow.mjs --state-dir .dashboard-state/state
       - name: Measure approved runner and no-runner policies plus direction radar
         run: node scripts/review_approved.mjs --state-dir .dashboard-state/state
-      - name: Measure trigger retest separately in fixed and optional runner modes
+      - name: Audit hidden trigger-retest challenger in fixed and runner modes
         run: node scripts/review_retest.mjs --state-dir .dashboard-state/state
       - name: Persist review, alarms, and dated challenger changelog
         run: python scripts/sync_state.py commit

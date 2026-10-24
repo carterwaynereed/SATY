@@ -61,7 +61,7 @@ jobs:
         if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
         continue-on-error: true
         run: python scripts/refresh_tv_market.py --output site/data/market.json --state-dir .dashboard-state/state
-      - name: Update separate trigger-retest observed and replay samples
+      - name: Audit hidden trigger-retest shadow samples
         if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
         run: node scripts/review_retest.mjs --state-dir .dashboard-state/state
       - name: Validate static payload

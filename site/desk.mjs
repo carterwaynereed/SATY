@@ -1,4 +1,3 @@
-import {selectSetupScenario,renderRetest} from './trigger-retest.mjs';
 import {chartLevels,drawChartOverlays} from './chart-overlays.mjs';
 import {renderRadar} from './radar.mjs';
 import {scoreDirection,renderPolicyReview} from './approved-rules.mjs';
@@ -20,7 +19,7 @@ const localServer=['localhost','127.0.0.1'].includes(location.hostname);
 const readMarket=createMarketReader(),readEvidence=createEvidenceReader();
 let showAllChartLevels=false;
 let snapshot=null,evidence=null,uw=null,learning=null,fetchFailed=false,fetching=false,selected='SPY',view='saty',page='desk',drawModel=null;
-let extendedHours={},exitSelections={},manualInputs=null,lastPoll=0,retestRunners={},retestEvidence=null;
+let extendedHours={},exitSelections={},manualInputs=null,lastPoll=0;
 let markets={},evidencePack=null,metadataReadAt=0,firstMarketRead=true,requestGeneration=0;
 let state={feeds:{symbols:{}},journal:[],context:{}},notes=[],paperConnected=false,paperMessage='Private journal has not been read.',metadataIssues=[],metadataFailures=new Set();
 try{const saved=JSON.parse(localStorage.getItem('saty-snapshot'));if(validPaperSnapshot(saved))state=saved;const savedNotes=JSON.parse(localStorage.getItem('saty-notes'));if(Array.isArray(savedNotes))notes=savedNotes.filter(n=>n&&typeof n==='object'&&typeof n.text==='string'&&safeHref(n.url));}catch{}
@@ -39,10 +38,8 @@ function maybeEodDefault(){
  if(!location.hash&&!new URLSearchParams(location.search).has('view')&&page==='desk'&&s?.date===eastern(now).date&&now>=Date.parse(s.close)-1800000&&now<Date.parse(s.close))location.replace(new URL('eod.html',location.href));
 }
 function renderDesk(){
- snapshot=selectSetupScenario(markets[selected]??snapshot,retestRunners[selected]===true);
  maybeEodDefault();
  renderRadar($('direction-radar'),{symbols:markets},{selected,onSelect:symbol=>{selectTicker(symbol);document.querySelector('[data-tab="desk"]').click();}});
- renderRetest($('trigger-retest'),snapshot,{runner:retestRunners[selected]===true,failed:fetchFailed,stats:retestEvidence?.by_symbol?.[selected]?.[retestRunners[selected]?'runner':'fixed']?.observed,onRunner:value=>{retestRunners[selected]=value;renderDesk();}});
  const exit=renderExitPanel($('exit-panel'),snapshot,{selectedId:exitSelections[selected],failed:fetchFailed,extended:extendedHours[selected],manual:manualInputs?.by_symbol?.[selected],onSelect:id=>{exitSelections[selected]=id;renderDesk();}});
 
  const h=health(),blocked=h.tone==='hold'||h.state==='DATED SNAPSHOT',m=snapshot?.market||{},r=snapshot?.ribbon||{},s=snapshot?.session||{},source=snapshot?.health?.source||{};
@@ -135,10 +132,9 @@ async function getJSON(url,{credential,schema=true,timeout=12000}={}){const cont
 async function refreshPaper(){if(!homeHost){paperConnected=false;paperMessage='The private paper journal lives on the home desk. This public mirror shows only this browser’s imported or retained journal. No private records are published to GitHub.';return;}
  try{const next=await getJSON('/api/snapshot',{credential:'same-origin',schema:false});if(!validPaperSnapshot(next))throw new Error('Invalid private snapshot');state=next;paperConnected=true;paperMessage=`Private ${next.mode==='hosted'?'hosted':'local'} journal · monitor update ${stamped(next.generatedAt)}. Paper feed freshness is checked separately at 90 seconds.`;saveLocal('saty-snapshot',state);}catch(error){paperConnected=false;paperMessage=error.status===401?'The hosted paper journal is private. Optional owner sign-in opens it; the public market desk needs no login. Any records below are retained or imported in this browser only.':error.status===403?'This signed-in account cannot read the owner’s private journal. Any records below are retained or imported in this browser only. Public market data remains available.':'Private monitor unavailable. Retained or imported journal is read-only; no paper setup can be queued. The SATY engine has its own independent feed.';}}
 async function refreshMetadata(){
- const results=await Promise.allSettled([readEvidence(endpoints.evidence,{sameOrigin:endpoints.sameOrigin,timeout:12000}),getJSON(`${DATA_BASE}uw.json`),getJSON(`${DATA_BASE}learning.json`),getJSON(`${DATA_BASE}manual-inputs.json`),getJSON('data/approved-rules.json'),getJSON(`${DATA_BASE}policy-evidence.json`),getJSON(`${DATA_BASE}retest-evidence.json`)]);metadataIssues=[];metadataFailures=new Set();
+ const results=await Promise.allSettled([readEvidence(endpoints.evidence,{sameOrigin:endpoints.sameOrigin,timeout:12000}),getJSON(`${DATA_BASE}uw.json`),getJSON(`${DATA_BASE}learning.json`),getJSON(`${DATA_BASE}manual-inputs.json`),getJSON('data/approved-rules.json'),getJSON(`${DATA_BASE}policy-evidence.json`)]);metadataIssues=[];metadataFailures=new Set();
  for(const [i,name] of [[0,'evidence'],[1,'uw'],[2,'learning']]){let value=results[i].status==='fulfilled'?results[i].value:null;if(!value){metadataFailures.add(name);metadataIssues.push(`${name} is a bundled or retained reference because the current file is unavailable.`);try{value=await getJSON(`data/${name==='evidence'?'tv-evidence':name}.json`);}catch{}}if(value){if(name==='evidence')evidencePack=value;if(name==='uw')uw=value;if(name==='learning')learning=value;}}
  renderPolicyReview($('policy-review'),results[4].status==='fulfilled'?results[4].value:null,results[5].status==='fulfilled'?results[5].value:null);
- retestEvidence=results[6].status==='fulfilled'?results[6].value:null;
  manualInputs=results[3].status==='fulfilled'?results[3].value:null;metadataReadAt=Date.now();if(!firstMarketRead)selectTicker(selected);renderLearning();await refreshPaper();renderJournal();
 }
 async function refresh(){if(fetching)return;lastPoll=Date.now();fetching=true;$('refresh').disabled=true;const generation=++requestGeneration;try{

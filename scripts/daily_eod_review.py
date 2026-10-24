@@ -124,7 +124,7 @@ def review(data,state,now):
         source=(archive or {}).get('source',snap.get('health',{}).get('source',{})).get('feed_fingerprint')
         own=[r for r in unique.values() if r['symbol']==symbol and r.get('session_date')==date and (not source or r.get('source_fingerprint')==source)]
         # Versioned policies must not double-count one bar across the cutover.
-        for version in ('saty-dual-setups-1.0', 'carter-score60-softcap-1.1', 'carter-score60-runner-1.0'):
+        for version in ('carter-score60-softcap-1.1', 'carter-score60-runner-1.0'):
             if any(r.get('strategy_version') == version for r in own):
                 own=[r for r in own if r.get('strategy_version') == version]
                 break
