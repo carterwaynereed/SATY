@@ -4,7 +4,7 @@ export function chartLevels(snapshot,model,{all=false,extra=[]}={}){
  const side=model?.setup?.side==='LONG'?1:model?.setup?.side==='SHORT'?-1:0;
  const targets=(model?.targets??[]).filter(t=>finite(t.price));
  const anchor=targets[0]?.price;
- if(side&&finite(anchor))for(const t of (snapshot?.levels??[]).filter(l=>finite(l.price)&&Math.abs(l.multiple??parseFloat(l.label)/100)<=1&&side*(l.price-anchor)>0).sort((a,b)=>side*(a.price-b.price)))if(!targets.some(x=>x.price===t.price))targets.push(t);
+ if(!model?.fixed_target_only&&side&&finite(anchor))for(const t of (snapshot?.levels??[]).filter(l=>finite(l.price)&&Math.abs(l.multiple??parseFloat(l.label)/100)<=1&&side*(l.price-anchor)>0).sort((a,b)=>side*(a.price-b.price)))if(!targets.some(x=>x.price===t.price))targets.push(t);
  const selected=targets.slice(0,2).map(t=>({...t,exitRole:'target'}));
  const stop=model?.stop;
  const full=all?[...(snapshot?.levels??[]),...extra].filter(l=>finite(l.price)).map(l=>({...l,exitRole:/^[+-]23\.6$/.test(l.label)?'trigger':side&&finite(anchor)&&side*(l.price-anchor)>=0?'target':'level'})):[];

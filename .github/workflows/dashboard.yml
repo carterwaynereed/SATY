@@ -70,6 +70,9 @@ jobs:
       - name: Measure hidden Saty 21 Pullback plus VIX challenger
         if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
         run: node scripts/review_pullback_vix.mjs --state-dir .dashboard-state/state
+      - name: Measure live Level Bounce separately from MAIN and shadow strategies
+        if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
+        run: node scripts/review_level_bounce.mjs --state-dir .dashboard-state/state
       - name: Validate static payload
         if: github.event_name != 'schedule' || steps.market.outputs.active == 'true'
         run: python scripts/validate_site.py

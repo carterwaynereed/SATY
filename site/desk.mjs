@@ -1,3 +1,4 @@
+import {renderBouncePanel} from './level-bounce-panel.mjs';
 import {chartLevels,drawChartOverlays} from './chart-overlays.mjs';
 import {renderRadar} from './radar.mjs';
 import {scoreDirection,renderPolicyReview} from './approved-rules.mjs';
@@ -40,6 +41,7 @@ function maybeEodDefault(){
 function renderDesk(){
  maybeEodDefault();
  renderRadar($('direction-radar'),{symbols:markets},{selected,onSelect:symbol=>{selectTicker(symbol);document.querySelector('[data-tab="desk"]').click();}});
+ renderBouncePanel($('level-bounce'),snapshot,{failed:fetchFailed,onSelect:id=>{exitSelections[selected]=id;renderDesk();}});
  const exit=renderExitPanel($('exit-panel'),snapshot,{selectedId:exitSelections[selected],failed:fetchFailed,extended:extendedHours[selected],manual:manualInputs?.by_symbol?.[selected],onSelect:id=>{exitSelections[selected]=id;renderDesk();}});
 
  const h=health(),blocked=h.tone==='hold'||h.state==='DATED SNAPSHOT',m=snapshot?.market||{},r=snapshot?.ribbon||{},s=snapshot?.session||{},source=snapshot?.health?.source||{};

@@ -1,3 +1,4 @@
+import {renderBouncePanel} from './level-bounce-panel.mjs';
 import {renderPolicyReview} from './approved-rules.mjs';
 import {renderRadar} from './radar.mjs';
 import {renderExitPanel,drawExitChart} from './exit-panel.mjs';
@@ -25,6 +26,7 @@ function render(){
  renderRadar($('direction-radar'),bundle,{selected:$('symbol').value,onSelect:symbol=>{$('symbol').value=symbol;loadFields();render();}});
   const s=bundle?.symbols?.[$('symbol').value];if(!s){$('status').textContent='DATA HOLD · Instrument unavailable.';return;}
   const symbol=$('symbol').value;
+  renderBouncePanel($('level-bounce'),s,{failed:fetchFailed,onSelect:id=>{exitSelections[symbol]=id;render();}});
   const model=renderExitPanel($('exit-panel'),s,{selectedId:exitSelections[symbol],failed:fetchFailed,extended:bundle?.extended_hours?.[symbol],manual:shared?.by_symbol?.[symbol],onSelect:id=>{exitSelections[symbol]=id;render();}});drawExitChart($('exit-chart'),s,model,{all:showAllChartLevels});
   const h=snapshotHealth(s,Date.now(),fetchFailed);
   $('status').className='connection '+(h.tone==='hold'?'warning':'');
@@ -57,7 +59,7 @@ async function refresh(){if(busy)return;lastPoll=Date.now();busy=true;try{
   // bundle may supply it, but retains its own timestamps and stale gates.
   let live=null,reference=null;try{live=await readMarket(ep.market,{sameOrigin:ep.sameOrigin});}catch{}
   if(!live||!live.symbols?.[$('symbol').value]?.one_minute_health){try{reference=await get(DATA+'market.json');}catch{}}
-  const newer=reference&&(!live||Date.parse(reference.generated_at)>Date.parse(live.generated_at));
+  const newer=reference&&(!live||Date.parse(reference.generated_at)>Date.parse(live.generated_at)&&(!live.symbols?.[$('symbol').value]?.level_bounce||reference.symbols?.[$('symbol').value]?.level_bounce));
   bundle=newer?reference:live??reference;
   // An older same-source 1m field is usable only as dated reference, never fresh.
   if(bundle&&reference&&bundle!==reference&&!bundle.symbols?.[$('symbol').value]?.one_minute_health){
