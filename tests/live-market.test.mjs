@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createMarketReader,MARKET_KEY} from '../lib/live-market.mjs';
+import {createMarketReader,MARKET_KEY,mergeMomentumHistory} from '../lib/live-market.mjs';
 import {createWorker} from '../hosting/worker.mjs';
 
 const SYMBOLS=['SPY','SPX','AAPL','GOOGL'];
@@ -40,7 +40,7 @@ test('market request fans out to four independent tickers and shares concurrent 
   const x=setup();const [a,b]=await Promise.all([x.get(x.bucket),x.get(x.bucket)]);
   assert.deepEqual(Object.keys(a.symbols).sort(),[...SYMBOLS].sort());assert.equal(x.calls.length,4);assert.deepEqual(a,b);
   for(const symbol of SYMBOLS){const s=a.symbols[symbol];assert.equal(s.market.symbol,symbol);assert.equal(s.health.source.baseline_compatible,true);assert.equal(s.health.state,'CURRENT');assert.equal(s.evidence_weights.in_session,true);assert.equal(s.evidence_weights.call+s.evidence_weights.put+s.evidence_weights.wait,100);assert.ok(s.evidence_weights.call>0||s.evidence_weights.put>0);}
-  assert.deepEqual(x.bucket.writes,[MARKET_KEY]);assert.equal(MARKET_KEY,'saty-plus/market-v5-level-bounce.json');
+  assert.deepEqual(x.bucket.writes,[MARKET_KEY]);assert.equal(MARKET_KEY,'saty-plus/market-v6-momentum.json');
 });
 
 test('cache coalesces polling and refreshes on a completed 1m boundary plus five seconds',async()=>{
@@ -107,4 +107,31 @@ test('previous-release cached policy decisions are omitted from the public prese
  x.bucket.data.set(MARKET_KEY,JSON.stringify(old));
  const get=createMarketReader(evidence,calendar,{clock:()=>t('2026-10-23T20:02:00Z'),reader:async()=>{throw Error('Should use complete closed cache');}}),publicValue=await get(x.bucket);
  for(const s of Object.values(publicValue.symbols)){assert.equal(s.approved_rules.decisions,undefined);assert.equal(s.conservative_rules.decisions,undefined);assert.ok(s.approved_rules.trades);}
+});
+
+test('momentum history bootstraps once, survives incremental reads and stays internal by default',async()=>{
+ let now=t('2026-10-23T14:00:05Z');const counts=[],bucket=new Bucket();
+ const reader=async(symbol,options)=>{counts.push(options.counts.three);return feed(symbol,now);};
+ const get=createMarketReader(evidence,calendar,{reader,clock:()=>now,includeMomentumContext:true});
+ const first=await get(bucket);assert.equal(first.momentum_context.SPY.history.length,530);assert.ok(counts.every(n=>n===3000));
+ now=t('2026-10-23T14:01:05Z');await get(bucket);assert.ok(counts.slice(4).every(n=>n===1200));
+ const normal=createMarketReader(evidence,calendar,{reader,clock:()=>now});
+ assert.equal((await normal(bucket)).momentum_context,undefined);
+ assert.ok(JSON.parse(bucket.data.get(MARKET_KEY)).momentum_context.SPY.history.length>500);
+});
+
+test('RVOL history drops a different feed identity and never includes unfinished or extended bars',()=>{
+ const now=t('2026-10-23T14:00:05Z'),f=feed('SPY',now),base=mergeMomentumHistory(null,f,calendar,now);
+ const later={...f,bars:[bar(t('2026-10-23T14:00:00Z'),1),bar(t('2026-10-23T12:00:00Z'),2),f.bars.at(-1)]};
+ assert.equal(mergeMomentumHistory(base,later,calendar,now).history.length,base.history.length);
+ const changed=mergeMomentumHistory(base,{...later,source:{...f.source,feed_fingerprint:'sha256:different'}},calendar,now);
+ assert.equal(changed.history.length,1);assert.equal(changed.history[0].time,f.bars.at(-1).time);
+});
+
+test('market ETag changes when the daily momentum reservation changes on the same bar',async()=>{
+ let signal=null;const x=setup(),worker=createWorker({},()=>null,()=>null,async bucket=>({...await x.get(bucket),momentum:{signal}}));
+ const req=tag=>new Request('https://desk.example/api/market',{headers:tag?{'If-None-Match':tag}:{}});
+ const first=await worker.fetch(req(),{BUCKET:x.bucket}),etag=first.headers.get('etag');
+ signal={id:'one-for-the-day',status:'HOLD'};
+ const next=await worker.fetch(req(etag),{BUCKET:x.bucket});assert.equal(next.status,200);assert.notEqual(next.headers.get('etag'),etag);
 });

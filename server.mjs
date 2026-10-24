@@ -4,7 +4,7 @@ import path from 'node:path';
 import {root,snapshot,scan,saveJSON,readJSON,makeTrade,withDataLock} from './scan.mjs';
 import {eastern} from './site/engine.mjs';
 const port=Number(process.env.SATY_PORT||8765),origin=`http://127.0.0.1:${port}`;
-const assetPath=url=>url==='/'?'index.html':/^\/(?:index\.html|engine\.mjs|desk\.mjs|sources\.json|assets\/[a-zA-Z0-9._-]+|data\/(?:latest|evidence|uw|learning)\.json)$/.test(url)?url.slice(1):null;
+const assetPath=url=>url==='/'?'index.html':/^\/(?:(?:index|details|eod|learning)\.html|[a-zA-Z0-9_-]+\.mjs|sources\.json|assets\/[a-zA-Z0-9._-]+|data\/(?:latest|evidence|uw|learning)\.json)$/.test(url)?url.slice(1):null;
 const types={'.html':'text/html; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json'};
 let writing=Promise.resolve();
 const server=http.createServer(async(req,res)=>{
