@@ -1,0 +1,14 @@
+{
+  "version": "saty-live-alert-desk-1.0",
+  "forward_testing_from": "2026-10-26",
+  "daily_max": 5,
+  "ticker_max": 3,
+  "loss_cooldown_minutes": 30,
+  "first_scale_fraction": 0.5,
+  "first_scale_atr": 0.3,
+  "target_atr": 0.4,
+  "stop_atr": 0.35,
+  "trail_atr_after_scale": 0.35,
+  "morning_range_minutes": 60,
+  "reported_results_independently_reproduced": false
+}

@@ -1,3 +1,4 @@
+import {ALERT_PROFILES,metricText,outcomeStats} from './outcome-stats.mjs';
 import {chartLevels,drawChartOverlays} from './chart-overlays.mjs';
 import {analyzeEOD} from './eod-analysis.mjs';
 import {sessionMode} from './session-mode.mjs';
@@ -8,8 +9,17 @@ const distance=(level,price)=>finite(level)&&finite(price)&&price>0?`${level-pri
 export function replayStat(target,snapshot){
  const p=target?.probability,n=p?.n??0,interval=p?.interval;
  // Use only the engine's measured exact-cell event with its chronology/feed gates.
- if(n<20||!finite(p?.display_probability)||snapshot?.health?.source?.baseline_compatible!==true||!Array.isArray(interval)||interval.length!==2||!interval.every(finite))return `Replay rate withheld · n=${n}. ${p?.reason||'No matching measured event.'}`;
- return `${p.event} · ${(p.display_probability*100).toFixed(0)}%, n=${n}; Wilson 95% ${interval.map(x=>(x*100).toFixed(0)+'%').join('–')} · DEVELOPMENT (correlated sessions).`;
+ if(n<20||!finite(p?.display_probability)||snapshot?.health?.source?.baseline_compatible!==true||!Array.isArray(interval)||interval.length!==2||!interval.every(finite))return `Target hit % withheld · n=${n}. ${p?.reason||'No matching measured event.'} · Closed green % unavailable · PF unavailable`;
+ return `Target hit % (${p.event}) · ${(p.display_probability*100).toFixed(0)}%, n=${n}; Wilson 95% ${interval.map(x=>(x*100).toFixed(0)+'%').join('–')} · Closed green %: unavailable · PF: unavailable · DEVELOPMENT (correlated sessions).`;
+}
+function liveAlertExitModel(snapshot,options){
+ const ts=arr(snapshot.live_alerts?.trades).filter(t=>finite(t.entry)),t=ts.find(t=>t.id===options.selectedId)??ts.find(t=>t.status==='TRACKING')??ts.at(-1);
+ const x=bounceExitModel({...snapshot,live_alerts:null,level_bounce:{trades:ts,position:t?.status==='TRACKING'?t:null,entries_today:snapshot.live_alerts.ticker_total}},options);
+ if(!t)return x;
+ x.setup={...t,side:t.side===1?'LONG':'SHORT'};x.policy_note=`${t.setup} · All live alerts ${snapshot.live_alerts.global_total}/5 · Ticker ${snapshot.live_alerts.ticker_total}/3 · No new entries after 3 PM`;x.stop.label=(t.trail?'Trailing':'Initial')+' 0.35 ATR stop';x.targets=[...(!t.first_scale_hit&&t.scale?[t.scale]:[]),t.target];x.lines=[...x.targets.map(l=>({...l,exitRole:'target'})),{...x.stop,exitRole:'stop'}];
+ x.stats=metricText(ALERT_PROFILES[t.setup_id]?.reported??{})+' · Reported replay, not independently reproduced.';
+ x.action=x.status==='DATA HOLD'?'DATA HOLD: confirmed bars or exact time-exit minute missing; no new instruction.':t.status==='CLOSED'?`${t.exit_reason} at $${money(t.exit)}. Target hit: ${t.target_hit?'yes':'no'}; closed green: ${t.return_pct>0?'yes':'no'}.`:'Half scale at 0.3 ATR; remaining target 0.4 ATR. Trail 0.35 ATR behind confirmed close after scale; hold to stop, target or 15:55. GET READY is an alert only.';
+ x.candidates=[...arr(snapshot.approved_rules?.trades),...arr(snapshot.level_bounce?.trades),...ts].map(t=>({...t,side:t.side===1?'LONG':'SHORT'}));return x;
 }
 function bounceExitModel(snapshot,options){
  const b=snapshot.level_bounce,all=arr(b.trades),t=all.find(t=>t.id===options.selectedId)??b.position??all.at(-1);
@@ -20,7 +30,7 @@ function bounceExitModel(snapshot,options){
  x.stop={label:'Level Bounce fixed stop',price:t.stop};x.targets=[t.target];x.lines=[{...t.target,exitRole:'target'},{...x.stop,exitRole:'stop'}];x.fixed_target_only=true;
  x.checks=[{label:'Within 0.1 ATR of target (alert only)',met:finite(x.price)&&Math.abs(x.price-t.target.price)<=.1*x.atr}];
  x.policy_note=`Level Bounce · Trades today: ${b.entries_today} · No new entries after 3 PM · ${b.cooldown_until&&Date.parse(b.cooldown_until)>(options.now??Date.now())?'Loss cooldown until '+b.cooldown_until:'Cooldown ready'}`;
- x.stats='Reported 5-week OOS replay: 70% wins, n=33; Wilson 95% 53–83%; +4.02%, PF 1.76, max DD −1.10%. User-supplied, not independently reproduced. Small sample; not a live probability.';
+ x.stats='LOW CONFIDENCE · 13-week reported replay: Target hit % unavailable; Closed green % 47%; PF 0.92; n not supplied. Forward-testing from Oct 26, 2026. Earlier five-week claim withdrawn.';
  if(t.status==='CLOSED'){x.status=(x.reference?'REFERENCE · ':'')+(t.exit_reason==='STOP HIT'?'STOP HIT':'EXIT / TAKE PROFIT');x.tone=x.reference?'neutral':'red';x.action=`${x.reference?'Replay reference. ':''}${t.exit_reason} at $${money(t.exit)} (${t.exit_at}).`;}
  else if(options.failed||t.time_exit_pending||t.status==='UNRESOLVED'||['STALE','UNAVAILABLE'].includes(snapshot.health?.state)){x.status='DATA HOLD';x.tone='neutral';x.action=t.time_exit_pending?'Exact 15:55 1m close missing; no exit price invented.':'Retained modeled setup; fresh complete bars required.';}
  else{x.status=(x.reference?'REFERENCE · ':'')+(x.checks[0].met?'GET READY TO EXIT':'HOLD');x.tone=x.reference?'neutral':x.checks[0].met?'amber':'green';x.action='Hold until fixed stop, target or 15:55 ET. No ribbon exit, opposite-flip exit, breakeven or early cut. GET READY is an alert only.';}
@@ -30,9 +40,10 @@ function approvedExitModel(snapshot,options){
  const policy=snapshot.approved_rules,now=options.now??Date.now(),trades=arr(policy.trades).map(t=>({...t,side:t.side===1?'LONG':'SHORT',targets:[],setup:t.setup??'Approved score flip'}));
  const chosen=trades.find(t=>t.id===options.selectedId)??trades.find(t=>t.status==='TRACKING')??trades.at(-1);
  const x=exitModel({...snapshot,approved_rules:null,signals:trades},{...options,selectedId:chosen?.id});
+ x.candidates.push(...arr(snapshot.live_alerts?.trades).filter(t=>finite(t.entry)).map(t=>({...t,side:t.side===1?'LONG':'SHORT'})));
  x.candidates.push(...arr(snapshot.level_bounce?.trades).map(t=>({...t,side:t.side===1?'LONG':'SHORT',setup:'Level Bounce'})));
  const original=arr(policy.trades).find(t=>t.id===chosen?.id),fresh=!x.reference&&original?.status==='TRACKING';
- x.stats='Approved rule outcome sample: see paired policy review. New exit policy has no calibrated probability.';
+ x.stats=metricText(outcomeStats(policy.trades),{suppressSmall:true})+' · Current session model; no calibrated probability.';
  const seconds=policy.cooldown_until?Math.max(0,Math.ceil((Date.parse(policy.cooldown_until)-now)/1000)):0,currentDay=sessionMode(now).day===snapshot.session?.date;
  x.policy_note=`Trades today: ${currentDay?policy.entries_today:0} · Cooldown: ${seconds?Math.floor(seconds/60)+':'+String(seconds%60).padStart(2,'0'):'ready'} · No new entries after 3 PM${currentDay?'':' · prior session reference '+snapshot.session?.date}`;
  if(!original){x.action=policy.pending?'Confirmed score flip. Model awaits the next available bar open; no order or historical fill is asserted.':'WAIT for a new confirmed 60% score flip. '+x.policy_note;return x;}
@@ -49,6 +60,7 @@ function approvedExitModel(snapshot,options){
  return x;
 }
 export function exitModel(snapshot,{selectedId,now=Date.now(),manual=null,failed=false}={}){
+ if(snapshot?.live_alerts?.trades?.some(t=>finite(t.entry)&&(t.id===selectedId||!selectedId&&t.status==='TRACKING')))return liveAlertExitModel(snapshot,{selectedId,now,manual,failed});
  if(snapshot?.level_bounce&&(arr(snapshot.level_bounce.trades).some(t=>t.id===selectedId)||!selectedId&&!snapshot.approved_rules?.position&&snapshot.level_bounce.position))return bounceExitModel(snapshot,{selectedId,now,manual,failed});
  if(snapshot?.approved_rules)return approvedExitModel(snapshot,{selectedId,now,manual,failed});
  const s=snapshot,m=s?.market??{},price=m.last,atr=m.atr14,bars=arr(s?.bars),last=bars.at(-1),previous=bars.at(-2),mode=sessionMode(now,s?.session);

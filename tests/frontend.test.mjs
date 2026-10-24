@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-const source=await readFile(new URL('../site/assets/app.js',import.meta.url),'utf8');
+const source=(await readFile(new URL('../site/assets/app.js',import.meta.url),'utf8')).replace("'../outcome-stats.mjs'",JSON.stringify(new URL('../site/outcome-stats.mjs',import.meta.url).href));
 const {number,percent,snapshotHealth,uwHealth,probabilityView,evidenceMatches,paperRateView,safeHref,manualSPYLevels,validPaperSnapshot}=await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 assert.equal(number(null),'—');assert.equal(number(0),'0.00');assert.equal(number(NaN),'—');assert.equal(percent(null),'—');assert.equal(percent(0),'0%');
 const now=Date.parse('2026-10-23T15:00:00Z');

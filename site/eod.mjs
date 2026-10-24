@@ -1,3 +1,5 @@
+import {metricText} from './outcome-stats.mjs';
+import {renderLiveAlerts} from './live-alert-panel.mjs';
 import {renderBouncePanel} from './level-bounce-panel.mjs';
 import {renderPolicyReview} from './approved-rules.mjs';
 import {renderRadar} from './radar.mjs';
@@ -26,6 +28,7 @@ function render(){
  renderRadar($('direction-radar'),bundle,{selected:$('symbol').value,onSelect:symbol=>{$('symbol').value=symbol;loadFields();render();}});
   const s=bundle?.symbols?.[$('symbol').value];if(!s){$('status').textContent='DATA HOLD · Instrument unavailable.';return;}
   const symbol=$('symbol').value;
+  renderLiveAlerts($('live-alerts'),s,{failed:fetchFailed,onSelect:id=>{exitSelections[symbol]=id;render();}});
   renderBouncePanel($('level-bounce'),s,{failed:fetchFailed,onSelect:id=>{exitSelections[symbol]=id;render();}});
   const model=renderExitPanel($('exit-panel'),s,{selectedId:exitSelections[symbol],failed:fetchFailed,extended:bundle?.extended_hours?.[symbol],manual:shared?.by_symbol?.[symbol],onSelect:id=>{exitSelections[symbol]=id;render();}});drawExitChart($('exit-chart'),s,model,{all:showAllChartLevels});
   const h=snapshotHealth(s,Date.now(),fetchFailed);
@@ -51,7 +54,7 @@ async function metadata(){
   let config=null,paired=null;try{config=await get('data/approved-rules.json');paired=await get(DATA+'policy-evidence.json');}catch{}renderPolicyReview($('policy-review'),config,paired);
   const last=r?.sessions?.at(-1);
   $('health-review').innerHTML='<p>Latest review: '+esc(last?.session_date||'not available')+' · observed signals n='+esc(last?.signal_count??'—')+' · actual observed WAIT n='+esc(last?.wait_count??'—')+' · replay-late n='+esc(last?.replay_late_count??'—')+'</p><p>'+esc(last?.lesson||'No completed ledger review yet.')+'</p><p>Signal excursion fraction: '+esc(rateText(last?.signal_evidence))+'</p><p>WAIT large-move context: '+esc(rateText(last?.wait_missed_move_evidence))+'</p><p>Alarms n='+esc(a?.alarms?.length??'—')+'. Inspection requests are not proof of a broken engine.</p>';
-  $('shadow-review').innerHTML=sh?.candidates?.length?sh.candidates.map(c=>'<p><b>'+esc(c.candidate_id)+'</b> · SHADOW ONLY · sessions n='+c.sessions+' · episodes n='+c.episodes_n+'</p><p>Baseline: '+esc(rateText(c.baseline))+'<br>Challenger: '+esc(rateText(c.challenger))+'</p><p>'+esc(c.promotion.reason)+'</p>').join(''):'No executable shadow sample yet · n=0. Registration never implies performance.';
+  $('shadow-review').innerHTML=sh?.candidates?.length?sh.candidates.map(c=>'<p><b>'+esc(c.candidate_id)+'</b> · SHADOW ONLY · sessions n='+c.sessions+' · episodes n='+c.episodes_n+'</p><p>Baseline: '+esc(metricText({...c.baseline,target_hit_rate:c.baseline?.rate})+' · '+rateText(c.baseline))+'<br>Challenger: '+esc(metricText({...c.challenger,target_hit_rate:c.challenger?.rate})+' · '+rateText(c.challenger))+'</p><p>'+esc(c.promotion.reason)+'</p>').join(''):'No executable shadow sample yet · n=0. Registration never implies performance.';
   metadataAt=Date.now();
 }
 async function refresh(){if(busy)return;lastPoll=Date.now();busy=true;try{

@@ -1,3 +1,4 @@
+import {outcomeStats,metricText} from './outcome-stats.mjs';
 // Carter-approved v3 overlay. Pure confirmed-RTH replay, never orders or option P&L.
 export const APPROVED_VERSION='carter-score60-softcap-1.1';
 export function scoreDirection(weights){return weights?.call>=60?'CALL':weights?.put>=60?'PUT':'WAIT';}
@@ -74,7 +75,7 @@ export function replayApproved(rows,levels,session,{runner=true,now=Date.now(),m
 }
 export function summarizeApproved(trades){
  const resolved=trades.filter(t=>t.status==='CLOSED'&&finite(t.return_pct)),n=resolved.length,wins=resolved.filter(t=>t.return_pct>0),gain=wins.reduce((s,t)=>s+t.return_pct,0),loss=-resolved.filter(t=>t.return_pct<0).reduce((s,t)=>s+t.return_pct,0);
- return {n,wins:wins.length,win_rate:n?wins.length/n:null,sum_underlying_return_pct:resolved.reduce((s,t)=>s+t.return_pct,0),profit_factor:loss?gain/loss:null,unresolved_n:trades.filter(t=>t.status==='UNRESOLVED'||t.time_exit_pending).length,open_n:trades.filter(t=>t.status==='TRACKING').length,note:'Underlying equal-notional sum; no costs, leverage or options modeled. Session-correlated small samples.'};
+ return {...outcomeStats(trades),n,wins:wins.length,win_rate:n?wins.length/n:null,sum_underlying_return_pct:resolved.reduce((s,t)=>s+t.return_pct,0),profit_factor:loss?gain/loss:null,unresolved_n:trades.filter(t=>t.status==='UNRESOLVED'||t.time_exit_pending).length,open_n:trades.filter(t=>t.status==='TRACKING').length,note:'Underlying equal-notional sum; no costs, leverage or options modeled. Session-correlated small samples.'};
 }
 export function renderPolicyReview(root,config,evidence){
  if(!root||!config)return;
@@ -82,9 +83,9 @@ export function renderPolicyReview(root,config,evidence){
  const p=document.createElement('p');p.className='fine';p.textContent='Carter-supplied development summary, Oct 19–23. Not independently reproduced. One week is a small, correlated sample; underlying returns are not option returns.';
  const table=document.createElement('table'),body=document.createElement('tbody');
  for(const [name,s] of Object.entries(config.supplied_results??{}).filter(([,v])=>v&&typeof v==='object'&&'n' in v)){
-  const row=document.createElement('tr');for(const text of [name,`n=${s.n??'not supplied'}`,`${Math.round(s.win_rate*100)}% wins`,`${s.return_pct>0?'+':''}${s.return_pct}%`, `PF ${s.profit_factor}`,s.max_drawdown_pct!=null?`Max DD ${s.max_drawdown_pct}%`:'']){const c=document.createElement('td');c.textContent=text;row.append(c);}body.append(row);
+  const row=document.createElement('tr');for(const text of [name,`n=${s.n??'not supplied'}`,metricText({...s,closed_green_rate:s.closed_green_rate??s.win_rate}),`${s.return_pct>0?'+':''}${s.return_pct}%`, `PF ${s.profit_factor}`,s.max_drawdown_pct!=null?`Max DD ${s.max_drawdown_pct}%`:'']){const c=document.createElement('td');c.textContent=text;row.append(c);}body.append(row);
  }
  table.append(body);
- const live=document.createElement('p');live.className='fine';live.textContent=evidence?`Prospective paired review: sessions n=${evidence.session_count}; runner trades n=${evidence.runner?.n??0}; no-runner trades n=${evidence.no_runner?.n??0}; radar resolved n=${evidence.radar?.n??0}. ${evidence.promotion?.reason??'No automatic promotion.'}`:'Prospective paired review unavailable. No result is inferred from the supplied development week.';
+ const live=document.createElement('p');live.className='fine';live.textContent=evidence?`Prospective paired review: sessions n=${evidence.session_count}; runner trades n=${evidence.runner?.n??0}; no-runner trades n=${evidence.no_runner?.n??0}; radar resolved n=${evidence.radar?.n??0}. ${metricText(evidence.runner??{})} · ${evidence.promotion?.reason??'No automatic promotion.'}`:'Prospective paired review unavailable. No result is inferred from the supplied development week.';
  root.replaceChildren(h,p,table,live);
 }
