@@ -145,7 +145,12 @@ The EOD Action runs at 21:10 UTC and verifies the New York exchange date and
 close. It finalizes capture, reviews immutable observations, runs shadow replay,
 and persists the results. Holidays and pre-close calls skip review. Full review
 rows live under `state/reviews/`; the site gets the latest ten compact reviews.
-Source artifacts remain buildless with no new production dependency. The budget
-is 750 KB for four-ticker seed data plus 1m support; 1m histories and full ledgers
-are not duplicated into the frontend. The seed predates minute capture and is
-honestly missing it until the shared Action writes actual minute data.
+Source artifacts remain buildless with no new production dependency. The total
+static artifact budget is 850 KB, covering archived Details pages, four-ticker
+snapshots and generated research summaries. The initial Momentum Tracker HTML,
+CSS and JavaScript dependencies have a separate 75 KB cap; both limits measure
+uncompressed bytes and exclude API responses. Validate the restored and generated
+payload as well as committed seeds, because scheduled observations can be larger.
+Full 1m histories and research ledgers are not duplicated into the frontend. The
+seed predates minute capture and is honestly missing it until the shared Action
+writes actual minute data.
