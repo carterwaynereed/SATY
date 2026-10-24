@@ -111,7 +111,7 @@ def summarize(directory: Path) -> dict:
                             (directory / "challengers.jsonl").read_bytes()).hexdigest()
     return {
         "schema_version": 1, "registry_id": digest,
-        "baseline": {"version": "saty-sig-2.0", "session_basis": "RTH"},
+        "baseline": {"version": active[0].get("baseline_version", "saty-sig-2.0") if active else "saty-sig-2.0", "session_basis": "RTH"},
         "state": selected["status"] if selected else "RESEARCH",
         "candidate_count": len(rows), "active_challenger": selected, "candidates": rows,
         "promotion": {"minimum_sessions": 30, "minimum_episodes": 100, "automatic": False,

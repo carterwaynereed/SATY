@@ -1,3 +1,4 @@
+import {attachApproved} from '../lib/approved-policy.mjs';
 // Convert the same verified TradingView feed contract into the public mirror.
 // The hosted Site obtains bars itself; this file is only the scheduled reference.
 import {readFile,writeFile} from 'node:fs/promises';
@@ -15,7 +16,7 @@ const evidence=JSON.parse(await readFile(resolve(root,'site/data/tv-evidence.jso
 const calendar=JSON.parse(await readFile(resolve(root,'hosting/session-calendar.json'),'utf8'));
 const now=option('--now')?Date.parse(option('--now')):Date.now(),symbols={};
 for(const symbol of ['SPY','SPX','AAPL','GOOGL']){
-  try{let feed=feeds[symbol];if(!feed||feed.error)throw new Error(feed?.error??'No captured TradingView feed');feed=feeds[symbol]=canonicalFeed(feed);if(!feed.trend_bars)feed.trend_bars=aggregateTenMinutes(feed.one_bars??[],now);symbols[symbol]=buildLiveSnapshot(feed,evidence.by_symbol[symbol],calendar,now);}
+  try{let feed=feeds[symbol];if(!feed||feed.error)throw new Error(feed?.error??'No captured TradingView feed');feed=feeds[symbol]=canonicalFeed(feed);if(!feed.trend_bars)feed.trend_bars=aggregateTenMinutes(feed.one_bars??[],now);symbols[symbol]=attachApproved(feed,buildLiveSnapshot(feed,evidence.by_symbol[symbol],calendar,now),now);}
   catch(error){symbols[symbol]=unavailableSnapshot(symbol,error.message,null,now,feeds[symbol]?.attempts??[]);}
 }
 if(option('--state-dir')){const summary=await recordResearch(feeds,symbols,resolve(option('--state-dir')),now);await writeFile(resolve(root,'site/data/decision-summary.json'),JSON.stringify(summary)+'\n');}

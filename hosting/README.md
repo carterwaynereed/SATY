@@ -95,3 +95,22 @@ The browser polls at 15s during RTH, 60s during 04:00–09:30 / 16:00–20:00 ET
 pauses automatically outside 04:00–20:00 and on weekends. Initial/manual reads
 remain possible. The exchange calendar gates server reads, including holidays.
 No GitHub Actions schedule was added or expanded.
+
+## Carter score60 promotion and direction radar
+
+The approved live overlay is `carter-score60-runner-1.0`; the frozen sig2 weights
+and reference events remain unchanged. Read [the precise rules and causal fill
+assumptions](../docs/APPROVED_RULES.md). The public market cache is now
+`saty-plus/market-v3-approved.json` so an older cached response cannot omit the
+approved state/radar after release. The private paper journal key and auth remain
+unchanged. Both frontend pages show approved modeled positions, the 2-entry cap,
+30-minute loss/flat cooldown, 15:00 entry cutoff, and per-ticker radar.
+
+Every archived 3m decision carries its score components, lean and approved gate
+state. Ledger IDs are versioned; old sig2 observations remain intact. The daily
+review selects the approved version at cutover instead of double-counting both.
+The existing after-close workflow additionally measures the registered no-runner
+challenger and radar outcomes; no new scheduler or intraday cadence was added.
+`policy-evidence.json` is persisted on dashboard-data, while raw paired records
+remain in its `state/approved/` archive. Reported Oct 19–23 aggregates have their
+own provenance and never count as prospective validation. No automatic promotion.
