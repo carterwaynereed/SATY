@@ -1,0 +1,22 @@
+{
+  "name": "Saty Level Bounce (confirmed) + VIX",
+  "version": "saty-level-bounce-vix-1.0",
+  "status": "LIVE_SIGNAL_ONLY",
+  "registered_at": "2026-10-24T03:36:30.052133+00:00",
+  "user_approved": true,
+  "automatic_promotion": false,
+  "orders": false,
+  "risk_scope": "Independent per-ticker Level Bounce cap/cooldown. MAIN policy unchanged; separate setups may disagree. No combined portfolio allocation.",
+  "reported_walk_forward": {
+    "n": 33,
+    "win_rate": 0.7,
+    "wilson_95": [
+      0.53,
+      0.83
+    ],
+    "return_pct": 4.02,
+    "profit_factor": 1.76,
+    "max_drawdown_pct": -1.1,
+    "independently_reproduced": false
+  }
+}

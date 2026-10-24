@@ -50,6 +50,8 @@ jobs:
         run: python scripts/capture_pullback_context.py --state-dir .dashboard-state/state
       - name: Measure hidden Saty 21 Pullback plus VIX challenger
         run: node scripts/review_pullback_vix.mjs --state-dir .dashboard-state/state
+      - name: Measure live Level Bounce separately from MAIN and shadow strategies
+        run: node scripts/review_level_bounce.mjs --state-dir .dashboard-state/state
       - name: Persist review, alarms, and dated challenger changelog
         run: python scripts/sync_state.py commit
       - name: Verify emitted review documents

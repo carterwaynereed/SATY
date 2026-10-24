@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {packTV,unpackTV,sourceIdentity,sourceFingerprint,confirmedBars,aggregateTenMinutes,readTradingView,openTradingViewSocket} from '../lib/tradingview-feed.mjs';
+import {packTV,unpackTV,sourceIdentity,sourceFingerprint,confirmedBars,aggregateTenMinutes,readTradingView,readVixTradingView,openTradingViewSocket} from '../lib/tradingview-feed.mjs';
 const NOW=Date.parse('2026-10-23T19:24:22Z');
 const seconds=s=>Date.parse(s)/1000;
 const value=(at,volume=100)=>[seconds(at),100,102,99,101,volume];
@@ -81,3 +81,5 @@ test('Worker handshake asks only for the public WebSocket and carries no credent
   assert.equal('Authorization' in request.options.headers,false);assert.equal('Cookie' in request.options.headers,false);
   await assert.rejects(openTradingViewSocket({fetcher:async()=>({status:403})}),/upgrade failed \(403\)/);
 });
+
+test('independent VIX transport requests CBOE source and respects completed bars/delay/identity',async()=>{const socket=new Socket({source:'CBOE'});const x=await readVixTradingView({openSocket:async()=>socket,clock:()=>NOW});assert.equal(x.source.symbol,'CBOE:VIX');assert.equal(socket.symbol,'CBOE:VIX');assert.equal(x.bars.at(-1).time,'2026-10-23T19:21:00.000Z');assert.equal(x.daily.length,26);await assert.rejects(readVixTradingView({openSocket:async()=>new Socket({mismatch:true}),clock:()=>NOW}),/inconsistent/);const delayed=await readVixTradingView({openSocket:async()=>new Socket({delay:600}),clock:()=>NOW});assert.equal(delayed.bars.at(-1).time,'2026-10-23T19:09:00.000Z');});
