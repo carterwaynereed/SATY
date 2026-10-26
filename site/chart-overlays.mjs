@@ -5,7 +5,7 @@ const finite=Number.isFinite;
 export function chartPalette(element=globalThis.document?.documentElement){
  const style=element&&globalThis.getComputedStyle?globalThis.getComputedStyle(element):null;
  const color=(name,fallback)=>style?.getPropertyValue(name).trim()||fallback;
- return {grid:color('--chart-grid','#334459'),label:color('--chart-label','#a8b6c7'),bull:color('--green','#68e0a5'),bear:color('--red','#ff8d99'),info:color('--blue','#7ad9ef'),vwap:color('--purple','#c9b4ff'),neutral:color('--muted','#a8b6c7'),panel:color('--panel','#141d29')};
+ return {grid:color('--chart-grid','#334459'),label:color('--chart-label','#a8b6c7'),bull:color('--green','#68e0a5'),bear:color('--red','#ff8d99'),info:color('--blue','#7ad9ef'),vwap:color('--purple','#c9b4ff'),neutral:color('--muted','#a8b6c7'),panel:color('--panel','#141d29'),amber:color('--amber','#ffd078'),preDown:'#d7a8b8'};
 }
 export function chartLevels(snapshot,model,{all=false,extra=[]}={}){
  const side=model?.setup?.side==='LONG'?1:model?.setup?.side==='SHORT'?-1:0;

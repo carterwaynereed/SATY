@@ -89,8 +89,16 @@ RTH close when available. A gap preview is a price difference, not a forecast.
 
 The response adds an independent `extended_hours` map beside `symbols`; it never
 passes extended bars to `buildLiveSnapshot`, recording, WAIT decisions, evidence,
-or shadow promotion. Extended history is cached in memory/coalesced for 60s;
-it is not written into the private journal or the regular durable market cache.
+or shadow promotion. Each equity entry also carries a `premarket` chart context:
+confirmed 04:00–09:30 ET prints folded into 3-minute buckets, plus the pre-market
+high/low, overnight range when prior after-hours prints were observed, and the
+gap versus the prior regular close in price and daily ATR. Partial buckets are
+omitted rather than filled. SPX stays closed. That context remains available
+after 09:30 as left-side chart history. A cold Worker backfills it once during
+the regular session; a warm pre-market read is not polled again after the open
+except for one completion check before 09:33. It is still `stats_eligible: false`
+and is not written into the private journal or the regular durable market cache.
+Extended history is cached in memory/coalesced for 60s.
 The browser polls at 15s during RTH, 60s during 04:00–09:30 / 16:00–20:00 ET, and
 pauses automatically outside 04:00–20:00 and on weekends. Initial/manual reads
 remain possible. The exchange calendar gates server reads, including holidays.
