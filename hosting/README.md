@@ -98,7 +98,7 @@ after 09:30 as left-side chart history. A cold Worker backfills it once during
 the regular session; a warm pre-market read is not polled again after the open
 except for one completion check before 09:33. It is still `stats_eligible: false`
 and is not written into the private journal or the regular durable market cache.
-Extended history is cached in memory/coalesced for 60s.
+Extended history is cached in memory/coalesced for 60s. Hourly ETH context is a separate native 60-minute read with `session: extended` for SPY, AAPL, and GOOGL. It reports hourly TTM squeeze (Bollinger 20, 2 inside Keltner 20, 1.5 ATR) plus the 10 and 21 EMAs on confirmed 04:00–20:00 ET bars. A forming hour is dropped and missing hours are not filled. Fewer than 40 confirmed bars, a delayed feed, or an hourly series with no pre-market or after-hours print returns DATA HOLD. SPX stays closed. The block is `session_basis: ETH` and `stats_eligible: false`; it is not passed to `buildLiveSnapshot`, evidence weights, or live entries. The desk loads it from a separate module. ChatGPT Site still needs its own republish after this is on main.
 The browser polls at 15s during RTH, 60s during 04:00–09:30 / 16:00–20:00 ET, and
 pauses automatically outside 04:00–20:00 and on weekends. Initial/manual reads
 remain possible. The exchange calendar gates server reads, including holidays.
