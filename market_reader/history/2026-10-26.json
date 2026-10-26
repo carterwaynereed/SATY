@@ -1,0 +1,70 @@
+{
+  "session_date": "2026-10-26",
+  "symbol": "SPY",
+  "session_basis": "RTH",
+  "anchors": {"+23.6": 761.67, "+100": 767.19},
+  "levels": {"+61.8": 764.3, "+78.6": 765.77},
+  "open": 762.26,
+  "high": 767.73,
+  "high_at": "10:57",
+  "afternoon": {"low": 764.1, "high": 767.4},
+  "swing_lows": [
+    {"price": 762.29},
+    {"price": 762.75},
+    {"price": 762.78},
+    {"price": 764.16}
+  ],
+  "lids": [
+    {"price": 764},
+    {"price": 764.3, "level": "+61.8"},
+    {"price": 765.77, "level": "+78.6"}
+  ],
+  "ribbon_tests": [
+    {"from": "09:30", "to": "09:39", "e8": "held", "e21": "held", "near": "+38.2", "note": "Open 8/21 hold as the stack turned bull"},
+    {"from": "09:57", "to": "10:06", "e8": "lost", "e21": "held", "near": "+38.2", "note": "Shallow test, continuation"},
+    {"from": "10:24", "to": "10:33", "e8": "lost", "e21": "held", "near": "+61.8", "note": "First GG pullback"},
+    {"from": "11:12", "to": "11:12", "e8": "lost", "e21": "held", "near": "+100", "note": "Second GG pullback after the extension"},
+    {"from": "11:24", "to": "11:40", "e8": "lost", "e21": "lost", "near": "+100", "note": "Repeated 8-EMA losses, trend done"}
+  ],
+  "volume": {"morning": "heavy", "midday": "dry", "late": "surge", "late_expanded_atr": false},
+  "vix": 14,
+  "vixy_rising": true,
+  "gg_through": "+38.2",
+  "trigger_hold": true,
+  "ten_minute_hold": true,
+  "ten_minute_21_lost": true,
+  "ribbon_flips": {"window": "12:45-14:42", "role": "context-only"},
+  "discord_fold": {
+    "status": "folded_from_carter_notes",
+    "scrape_path": "/workspace/saty_signals/",
+    "scrape_present": false,
+    "note": "No Discord scrape was on the box. This fold is Carter's Oct 26 paraphrase, not a copied transcript."
+  },
+  "discord": {
+    "source": "Carter paraphrase of Saty notes and chat for 2026-10-26",
+    "calls": [
+      {"at": "09:39", "paraphrase": "GG open"},
+      {"at": "09:39", "paraphrase": "Holding up 10m / long trigger so far, but choppy"},
+      {"at": "10:11", "paraphrase": "3m ascending triangle"},
+      {"at": null, "paraphrase": "GG path printed"},
+      {"at": null, "paraphrase": "Pullback after 7700/H200"},
+      {"at": null, "paraphrase": "Afternoon scalp box"},
+      {"at": null, "paraphrase": "10m 21 loss stopped runners"},
+      {"at": null, "paraphrase": "VIX is confirmation, not a standalone veto"}
+    ]
+  },
+  "scorecard": {
+    "worked": [
+      "09:39 long opening-gap trigger break",
+      "09:39 long golden gate open",
+      "10:30 first GG pullback to the ribbon",
+      "10:30 grind lean up, watch only"
+    ],
+    "failed": [
+      "Midday ribbon flips 12:45-14:42",
+      "11:12 second GG pullback",
+      "10:00 chop sit from VIXY rising while VIX was about 14",
+      "15:50 EOD max-pain short was not a one-level win"
+    ]
+  }
+}
