@@ -22,3 +22,7 @@
 {"symbol":"SPX","observed_at":"2026-10-30T19:14:34.035Z","state":"CURRENT","bar_time":"2026-10-30T19:12:00.000Z","one_minute_state":"CURRENT"}
 {"symbol":"AAPL","observed_at":"2026-10-30T19:14:34.035Z","state":"CURRENT","bar_time":"2026-10-30T19:12:00.000Z","one_minute_state":"CURRENT"}
 {"symbol":"GOOGL","observed_at":"2026-10-30T19:14:34.035Z","state":"CURRENT","bar_time":"2026-10-30T19:12:00.000Z","one_minute_state":"CURRENT"}
+{"symbol":"SPY","observed_at":"2026-10-30T19:59:27.346Z","state":"CURRENT","bar_time":"2026-10-30T19:57:00.000Z","one_minute_state":"CURRENT"}
+{"symbol":"SPX","observed_at":"2026-10-30T19:59:27.346Z","state":"CURRENT","bar_time":"2026-10-30T19:57:00.000Z","one_minute_state":"CURRENT"}
+{"symbol":"AAPL","observed_at":"2026-10-30T19:59:27.346Z","state":"CURRENT","bar_time":"2026-10-30T19:57:00.000Z","one_minute_state":"CURRENT"}
+{"symbol":"GOOGL","observed_at":"2026-10-30T19:59:27.346Z","state":"CURRENT","bar_time":"2026-10-30T19:57:00.000Z","one_minute_state":"CURRENT"}
