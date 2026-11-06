@@ -1,0 +1,4 @@
+{"symbol":"SPY","observed_at":"2026-11-06T15:10:40.659Z","state":"CURRENT","bar_time":"2026-11-06T15:09:00.000Z","one_minute_state":"CURRENT"}
+{"symbol":"SPX","observed_at":"2026-11-06T15:10:40.659Z","state":"UNAVAILABLE","bar_time":null,"one_minute_state":"UNAVAILABLE"}
+{"symbol":"AAPL","observed_at":"2026-11-06T15:10:40.659Z","state":"UNAVAILABLE","bar_time":null,"one_minute_state":"UNAVAILABLE"}
+{"symbol":"GOOGL","observed_at":"2026-11-06T15:10:40.659Z","state":"UNAVAILABLE","bar_time":null,"one_minute_state":"UNAVAILABLE"}
