@@ -14,3 +14,7 @@
 {"symbol":"SPX","observed_at":"2026-11-20T18:22:58.147Z","state":"CURRENT","bar_time":"2026-11-20T18:21:00.000Z","one_minute_state":"CURRENT"}
 {"symbol":"AAPL","observed_at":"2026-11-20T18:22:58.147Z","state":"CURRENT","bar_time":"2026-11-20T18:21:00.000Z","one_minute_state":"CURRENT"}
 {"symbol":"GOOGL","observed_at":"2026-11-20T18:22:58.147Z","state":"CURRENT","bar_time":"2026-11-20T18:21:00.000Z","one_minute_state":"CURRENT"}
+{"symbol":"SPY","observed_at":"2026-11-20T21:52:50.790Z","state":"CLOSED","bar_time":"2026-11-20T21:00:00.000Z","one_minute_state":"CLOSED"}
+{"symbol":"SPX","observed_at":"2026-11-20T21:52:50.790Z","state":"CLOSED","bar_time":"2026-11-20T21:00:00.000Z","one_minute_state":"CLOSED"}
+{"symbol":"AAPL","observed_at":"2026-11-20T21:52:50.790Z","state":"CLOSED","bar_time":"2026-11-20T21:00:00.000Z","one_minute_state":"CLOSED"}
+{"symbol":"GOOGL","observed_at":"2026-11-20T21:52:50.790Z","state":"CLOSED","bar_time":"2026-11-20T21:00:00.000Z","one_minute_state":"CLOSED"}
